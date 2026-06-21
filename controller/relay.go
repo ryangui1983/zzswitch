@@ -189,7 +189,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.LastError = nil
 	var lastChannelError *types.ChannelError
 
-	for ; ; retryParam.IncreaseRetry() {
+	for attempts := 0; ; attempts++ {
+		if attempts > 1000 {
+			newAPIError = types.NewError(fmt.Errorf("渠道重试次数超过安全上限"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+			break
+		}
+		if attempts > 0 {
+			retryParam.IncreaseRetry()
+		}
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
