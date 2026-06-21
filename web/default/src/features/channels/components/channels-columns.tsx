@@ -40,6 +40,7 @@ import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import {
   Tooltip,
   TooltipContent,
@@ -57,7 +58,7 @@ import {
 } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
-import { getCodexUsage } from '../api'
+import { getCodexUsage, updateChannel } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatBalance,
@@ -74,6 +75,7 @@ import {
   handleUpdateChannelField,
   handleUpdateTagField,
   handleUpdateChannelBalance,
+  channelsQueryKeys,
   isTagAggregateRow,
   type TagRow,
 } from '../lib'
@@ -297,6 +299,12 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const isTagRow = isTagAggregateRow(channel)
   const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
+  const settings = parseChannelSettings(channel.setting)
+  const multiplier =
+    typeof settings.upstream_rate_multiplier === 'number'
+      ? settings.upstream_rate_multiplier
+      : 1
+  const multiplierDisplay = `${multiplier}x`
   const [isUpdating, setIsUpdating] = useState(false)
   const [codexUsageOpen, setCodexUsageOpen] = useState(false)
   const [codexUsageResponse, setCodexUsageResponse] =
@@ -421,6 +429,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
           />
           <TooltipContent>
             <p>{sensitiveVisible ? usedLabel : maskedUsedLabel}</p>
+            {sensitiveVisible && <p>{`${t('Multiplier:')} ${multiplierDisplay}`}</p>}
           </TooltipContent>
         </Tooltip>
         <Tooltip>
@@ -475,6 +484,61 @@ function BalanceCell({ channel }: { channel: Channel }) {
         }}
         isRefreshing={isUpdating}
       />
+    </TooltipProvider>
+  )
+}
+
+function AutoRecoveryCell({ channel }: { channel: Channel }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const isTagRow = isTagAggregateRow(channel)
+  const [isUpdating, setIsUpdating] = useState(false)
+
+  if (isTagRow) return null
+
+  const settings = parseChannelSettings(channel.setting)
+  const enabled = settings.health_check_auto_enable_enabled === true
+
+  const handleChange = async (checked: boolean) => {
+    if (isUpdating) return
+    setIsUpdating(true)
+    try {
+      const nextSetting = JSON.stringify({
+        ...settings,
+        health_check_auto_enable_enabled: checked,
+      })
+      const response = await updateChannel(channel.id, { setting: nextSetting })
+      if (response.success) {
+        toast.success(
+          checked ? t('Auto recovery enabled') : t('Auto recovery disabled')
+        )
+        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      } else {
+        toast.error(response.message || t('Failed to update channel'))
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to update channel')
+      )
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  return (
+    <TooltipProvider delay={100}>
+      <Tooltip>
+        <TooltipTrigger render={<div className='flex items-center' />}>
+          <Switch
+            checked={enabled}
+            disabled={isUpdating}
+            onCheckedChange={handleChange}
+          />
+        </TooltipTrigger>
+        <TooltipContent side='top'>
+          {t('Test auto-disabled channel every 60 seconds and re-enable it after success')}
+        </TooltipContent>
+      </Tooltip>
     </TooltipProvider>
   )
 }
@@ -647,6 +711,16 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           )
         },
         minSize: 200,
+      },
+
+      // Auto recovery column
+      {
+        id: 'auto_recovery',
+        meta: { label: t('Auto Recovery') },
+        header: t('Auto Recovery'),
+        cell: ({ row }) => <AutoRecoveryCell channel={row.original as Channel} />,
+        size: 120,
+        enableSorting: false,
       },
 
       // Type column

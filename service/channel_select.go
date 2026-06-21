@@ -5,19 +5,25 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	RequestPath  string
-	Retry        *int
-	resetNextTry bool
+	Ctx                  *gin.Context
+	TokenGroup           string
+	ModelName            string
+	RequestPath          string
+	Retry                *int
+	RetryChannel         *model.Channel
+	ExhaustedChannelIds  map[int]bool
+	ChannelAttemptCounts map[int]int
+	resetNextTry         bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -44,6 +50,38 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+func (p *RetryParam) SelectRetryChannel(err *types.NewAPIError, channel *model.Channel) {
+	if p == nil || channel == nil {
+		return
+	}
+	if p.ChannelAttemptCounts == nil {
+		p.ChannelAttemptCounts = make(map[int]int)
+	}
+	p.ChannelAttemptCounts[channel.Id]++
+	settings := channel.GetSetting()
+	if shouldRetrySameChannel(err, settings) && p.ChannelAttemptCounts[channel.Id] <= settings.GetSchedulerPoolModeRetryTimes() {
+		p.RetryChannel = channel
+		p.ResetRetryNextTry()
+		return
+	}
+	p.RetryChannel = nil
+	if p.ExhaustedChannelIds == nil {
+		p.ExhaustedChannelIds = make(map[int]bool)
+	}
+	p.ExhaustedChannelIds[channel.Id] = true
+	p.ResetRetryNextTry()
+}
+
+func shouldRetrySameChannel(err *types.NewAPIError, settings dto.ChannelSettings) bool {
+	if err == nil || !settings.SchedulerPoolModeEnabled {
+		return false
+	}
+	if operation_setting.IsImageGenerationGroupPermissionError(err.StatusCode, err.Error()) {
+		return false
+	}
+	return settings.ShouldRetrySameChannelByStatusCode(err.StatusCode)
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -82,6 +120,12 @@ func (p *RetryParam) ResetRetryNextTry() {
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	if param.RetryChannel != nil {
+		channel := param.RetryChannel
+		param.RetryChannel = nil
+		return channel, param.TokenGroup, nil
+	}
+
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup
@@ -116,7 +160,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.RequestPath)
+			channel, _ = model.GetRandomSatisfiedChannelExcluding(autoGroup, param.ModelName, priorityRetry, param.RequestPath, param.ExhaustedChannelIds)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -154,7 +198,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath)
+		channel, err = model.GetRandomSatisfiedChannelExcluding(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath, param.ExhaustedChannelIds)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}

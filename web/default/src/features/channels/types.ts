@@ -86,6 +86,17 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  scheduler_pool_mode_enabled?: boolean
+  scheduler_pool_mode_retry_times?: number
+  scheduler_pool_mode_retry_status_codes?: string
+  upstream_rate_multiplier?: number
+  health_check_enabled?: boolean
+  health_check_auto_enable_enabled?: boolean
+  error_ratio_disable_enabled?: boolean
+  error_ratio_window_seconds?: number
+  error_ratio_threshold?: number
+  error_ratio_min_requests?: number
+  error_ratio_status_codes?: string
 }
 
 export interface ChannelOtherSettings {

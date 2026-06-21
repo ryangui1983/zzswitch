@@ -106,9 +106,13 @@ func SyncChannelCache(frequency int) {
 }
 
 func GetRandomSatisfiedChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+	return GetRandomSatisfiedChannelExcluding(group, model, retry, requestPath, nil)
+}
+
+func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, requestPath string, excluded map[int]bool) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry, requestPath)
+		return GetChannelExcluding(group, model, retry, requestPath, excluded)
 	}
 
 	channelSyncLock.RLock()
@@ -127,20 +131,19 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 		return nil, nil
 	}
 
-	if len(channels) == 1 {
-		if channel, ok := channelsIDM[channels[0]]; ok {
-			return channel, nil
-		}
-		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
-	}
-
 	uniquePriorities := make(map[int]bool)
 	for _, channelId := range channels {
+		if excluded != nil && excluded[channelId] {
+			continue
+		}
 		if channel, ok := channelsIDM[channelId]; ok {
 			uniquePriorities[int(channel.GetPriority())] = true
 		} else {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
+	}
+	if len(uniquePriorities) == 0 {
+		return nil, nil
 	}
 	var sortedUniquePriorities []int
 	for priority := range uniquePriorities {
@@ -153,10 +156,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	}
 	targetPriority := int64(sortedUniquePriorities[retry])
 
-	// get the priority for the given retry number
 	var sumWeight = 0
 	var targetChannels []*Channel
 	for _, channelId := range channels {
+		if excluded != nil && excluded[channelId] {
+			continue
+		}
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
 				sumWeight += channel.GetWeight()
@@ -167,6 +172,10 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 		}
 	}
 
+	return selectWeightedChannel(targetChannels, sumWeight, group, model, targetPriority)
+}
+
+func selectWeightedChannel(targetChannels []*Channel, sumWeight int, group string, model string, targetPriority int64) (*Channel, error) {
 	if len(targetChannels) == 0 {
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
 	}

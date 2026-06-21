@@ -4,15 +4,130 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	ForceFormat                       bool     `json:"force_format,omitempty"`
+	ThinkingToContent                 bool     `json:"thinking_to_content,omitempty"`
+	Proxy                             string   `json:"proxy"`
+	PassThroughBodyEnabled            bool     `json:"pass_through_body_enabled,omitempty"`
+	SystemPrompt                      string   `json:"system_prompt,omitempty"`
+	SystemPromptOverride              bool     `json:"system_prompt_override,omitempty"`
+	SchedulerPoolModeEnabled          bool     `json:"scheduler_pool_mode_enabled,omitempty"`
+	SchedulerPoolModeRetryTimes       *int     `json:"scheduler_pool_mode_retry_times,omitempty"`
+	SchedulerPoolModeRetryStatusCodes string   `json:"scheduler_pool_mode_retry_status_codes,omitempty"`
+	UpstreamRateMultiplier            *float64 `json:"upstream_rate_multiplier,omitempty"`
+	HealthCheckEnabled                bool     `json:"health_check_enabled,omitempty"`
+	HealthCheckAutoEnableEnabled      bool     `json:"health_check_auto_enable_enabled,omitempty"`
+	ErrorRatioDisableEnabled          bool     `json:"error_ratio_disable_enabled,omitempty"`
+	ErrorRatioWindowSeconds           *int     `json:"error_ratio_window_seconds,omitempty"`
+	ErrorRatioThreshold               *float64 `json:"error_ratio_threshold,omitempty"`
+	ErrorRatioMinRequests             *int     `json:"error_ratio_min_requests,omitempty"`
+	ErrorRatioStatusCodes             string   `json:"error_ratio_status_codes,omitempty"`
+}
+
+func (s ChannelSettings) GetSchedulerPoolModeRetryTimes() int {
+	if s.SchedulerPoolModeRetryTimes == nil {
+		return 3
+	}
+	if *s.SchedulerPoolModeRetryTimes < 0 {
+		return 0
+	}
+	if *s.SchedulerPoolModeRetryTimes > 10 {
+		return 10
+	}
+	return *s.SchedulerPoolModeRetryTimes
+}
+
+func (s ChannelSettings) ShouldRetrySameChannelByStatusCode(code int) bool {
+	if !s.SchedulerPoolModeEnabled {
+		return false
+	}
+	statusCodes := s.SchedulerPoolModeRetryStatusCodes
+	if statusCodes == "" {
+		statusCodes = "401,403,429"
+	}
+	ranges, err := operation_setting.ParseHTTPStatusCodeRanges(statusCodes)
+	if err != nil || len(ranges) == 0 {
+		return false
+	}
+	for _, r := range ranges {
+		if code < r.Start {
+			return false
+		}
+		if code <= r.End {
+			return true
+		}
+	}
+	return false
+}
+
+func (s ChannelSettings) GetUpstreamRateMultiplier() float64 {
+	if s.UpstreamRateMultiplier == nil {
+		return 1
+	}
+	if *s.UpstreamRateMultiplier < 0 {
+		return 0
+	}
+	return *s.UpstreamRateMultiplier
+}
+
+func (s ChannelSettings) GetErrorRatioWindowSeconds() int {
+	if s.ErrorRatioWindowSeconds == nil || *s.ErrorRatioWindowSeconds <= 0 {
+		return 60
+	}
+	if *s.ErrorRatioWindowSeconds < 10 {
+		return 10
+	}
+	if *s.ErrorRatioWindowSeconds > 3600 {
+		return 3600
+	}
+	return *s.ErrorRatioWindowSeconds
+}
+
+func (s ChannelSettings) GetErrorRatioThreshold() float64 {
+	if s.ErrorRatioThreshold == nil {
+		return 0.5
+	}
+	if *s.ErrorRatioThreshold < 0 {
+		return 0
+	}
+	if *s.ErrorRatioThreshold > 1 {
+		return 1
+	}
+	return *s.ErrorRatioThreshold
+}
+
+func (s ChannelSettings) GetErrorRatioMinRequests() int {
+	if s.ErrorRatioMinRequests == nil || *s.ErrorRatioMinRequests <= 0 {
+		return 5
+	}
+	return *s.ErrorRatioMinRequests
+}
+
+func (s ChannelSettings) ShouldTrackErrorRatioStatusCode(code int) bool {
+	if !s.ErrorRatioDisableEnabled {
+		return false
+	}
+	statusCodes := s.ErrorRatioStatusCodes
+	if statusCodes == "" {
+		statusCodes = "502,503"
+	}
+	ranges, err := operation_setting.ParseHTTPStatusCodeRanges(statusCodes)
+	if err != nil || len(ranges) == 0 {
+		return false
+	}
+	for _, r := range ranges {
+		if code < r.Start {
+			return false
+		}
+		if code <= r.End {
+			return true
+		}
+	}
+	return false
 }
 
 type VertexKeyType string

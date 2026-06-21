@@ -220,6 +220,11 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
+    values.scheduler_pool_mode_enabled ||
+    values.upstream_rate_multiplier !== 1 ||
+    values.health_check_enabled ||
+    values.health_check_auto_enable_enabled ||
+    values.error_ratio_disable_enabled ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
@@ -3320,6 +3325,162 @@ export function ChannelMutateDrawer({
                           </FormItem>
                         )}
                       />
+
+                      <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                        <SubHeading
+                          title={t('Channel Health Automation')}
+                          icon={<RefreshCw className='h-3.5 w-3.5' />}
+                        />
+                        <div className='grid gap-4 md:grid-cols-2'>
+                          <FormField
+                            control={form.control}
+                            name='upstream_rate_multiplier'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Upstream Rate Multiplier')}</FormLabel>
+                                <FormControl>
+                                  <Input type='number' min='0' step='0.01' {...field} />
+                                </FormControl>
+                                <FormDescription>
+                                  {t('Display-only upstream multiplier. It does not affect user billing.')}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='scheduler_pool_mode_retry_status_codes'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Same Channel Retry Status Codes')}</FormLabel>
+                                <FormControl>
+                                  <Input placeholder='401,403,429' {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='scheduler_pool_mode_retry_times'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Same Channel Retry Times')}</FormLabel>
+                                <FormControl>
+                                  <Input type='number' min='0' max='10' {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='error_ratio_status_codes'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Error Ratio Status Codes')}</FormLabel>
+                                <FormControl>
+                                  <Input placeholder='502,503' {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='error_ratio_window_seconds'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Error Window Seconds')}</FormLabel>
+                                <FormControl>
+                                  <Input type='number' min='10' max='3600' {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='error_ratio_threshold'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Error Ratio Threshold')}</FormLabel>
+                                <FormControl>
+                                  <Input type='number' min='0' max='1' step='0.01' {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='error_ratio_min_requests'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Minimum Requests')}</FormLabel>
+                                <FormControl>
+                                  <Input type='number' min='1' {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className='divide-border space-y-0 divide-y border-y'>
+                          <FormField
+                            control={form.control}
+                            name='scheduler_pool_mode_enabled'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>{t('Pool Mode Same Channel Retry')}</FormLabel>
+                                  <FormDescription>
+                                    {t('Retry the same channel before switching priority.')}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='health_check_auto_enable_enabled'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>{t('Auto Recovery')}</FormLabel>
+                                  <FormDescription>
+                                    {t('Test auto-disabled channel every 60 seconds and re-enable it after success')}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='error_ratio_disable_enabled'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>{t('Error Ratio Auto Disable')}</FormLabel>
+                                  <FormDescription>
+                                    {t('Disable channel when the short-window error ratio reaches the threshold.')}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
 
                       {MODEL_FETCHABLE_TYPES.has(currentType) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>

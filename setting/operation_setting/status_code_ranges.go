@@ -67,6 +67,10 @@ func AutomaticRetryStatusCodesFromString(s string) error {
 	return nil
 }
 
+func IsImageGenerationGroupPermissionError(statusCode int, message string) bool {
+	return statusCode == 403 && strings.Contains(message, "Image generation is not enabled for this group")
+}
+
 func IsAlwaysSkipRetryStatusCode(code int) bool {
 	_, exists := alwaysSkipRetryStatusCodes[code]
 	return exists

@@ -663,6 +663,12 @@ func (info *RelayInfo) SetFirstResponseTime() {
 	}
 }
 
+func (info *RelayInfo) ResetAttemptTiming(startTime time.Time) {
+	info.StartTime = startTime
+	info.FirstResponseTime = startTime.Add(-time.Second)
+	info.isFirstResponse = true
+}
+
 func (info *RelayInfo) HasSendResponse() bool {
 	return info.FirstResponseTime.After(info.StartTime)
 }

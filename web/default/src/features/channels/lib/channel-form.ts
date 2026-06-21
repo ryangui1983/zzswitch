@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
+import { parseHttpStatusCodeRules } from '@/lib/http-status-code-rules'
 import {
   CHANNEL_STATUS,
   ERROR_MESSAGES,
@@ -190,6 +191,22 @@ export const channelFormSchema = z
     pass_through_body_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
+    scheduler_pool_mode_enabled: z.boolean().optional(),
+    scheduler_pool_mode_retry_times: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(10)
+      .optional(),
+    scheduler_pool_mode_retry_status_codes: z.string().optional(),
+    upstream_rate_multiplier: z.coerce.number().min(0).optional(),
+    health_check_enabled: z.boolean().optional(),
+    health_check_auto_enable_enabled: z.boolean().optional(),
+    error_ratio_disable_enabled: z.boolean().optional(),
+    error_ratio_window_seconds: z.coerce.number().int().min(10).max(3600).optional(),
+    error_ratio_threshold: z.coerce.number().min(0).max(1).optional(),
+    error_ratio_min_requests: z.coerce.number().int().min(1).optional(),
+    error_ratio_status_codes: z.string().optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -288,6 +305,23 @@ export const channelFormSchema = z
         'Vertex AI API Key mode does not support batch creation'
       )
     }
+
+    for (const [field, value] of [
+      [
+        'scheduler_pool_mode_retry_status_codes',
+        data.scheduler_pool_mode_retry_status_codes,
+      ],
+      ['error_ratio_status_codes', data.error_ratio_status_codes],
+    ] as const) {
+      const parsed = parseHttpStatusCodeRules(value ?? '')
+      if (!parsed.ok) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: `Invalid status code rules: ${parsed.invalidTokens.join(', ')}`,
+        })
+      }
+    }
   })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -329,6 +363,17 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   pass_through_body_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
+  scheduler_pool_mode_enabled: false,
+  scheduler_pool_mode_retry_times: 3,
+  scheduler_pool_mode_retry_status_codes: '401,403,429',
+  upstream_rate_multiplier: 1,
+  health_check_enabled: false,
+  health_check_auto_enable_enabled: false,
+  error_ratio_disable_enabled: false,
+  error_ratio_window_seconds: 60,
+  error_ratio_threshold: 0.5,
+  error_ratio_min_requests: 5,
+  error_ratio_status_codes: '502,503',
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -366,6 +411,17 @@ export function transformChannelToFormDefaults(
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    scheduler_pool_mode_enabled: false,
+    scheduler_pool_mode_retry_times: 3,
+    scheduler_pool_mode_retry_status_codes: '401,403,429',
+    upstream_rate_multiplier: 1,
+    health_check_enabled: false,
+    health_check_auto_enable_enabled: false,
+    error_ratio_disable_enabled: false,
+    error_ratio_window_seconds: 60,
+    error_ratio_threshold: 0.5,
+    error_ratio_min_requests: 5,
+    error_ratio_status_codes: '502,503',
   }
 
   if (channel.setting) {
@@ -378,6 +434,36 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+        scheduler_pool_mode_enabled:
+          parsed.scheduler_pool_mode_enabled === true,
+        scheduler_pool_mode_retry_times:
+          typeof parsed.scheduler_pool_mode_retry_times === 'number'
+            ? parsed.scheduler_pool_mode_retry_times
+            : 3,
+        scheduler_pool_mode_retry_status_codes:
+          parsed.scheduler_pool_mode_retry_status_codes || '401,403,429',
+        upstream_rate_multiplier:
+          typeof parsed.upstream_rate_multiplier === 'number'
+            ? parsed.upstream_rate_multiplier
+            : 1,
+        health_check_enabled: parsed.health_check_enabled === true,
+        health_check_auto_enable_enabled:
+          parsed.health_check_auto_enable_enabled === true,
+        error_ratio_disable_enabled:
+          parsed.error_ratio_disable_enabled === true,
+        error_ratio_window_seconds:
+          typeof parsed.error_ratio_window_seconds === 'number'
+            ? parsed.error_ratio_window_seconds
+            : 60,
+        error_ratio_threshold:
+          typeof parsed.error_ratio_threshold === 'number'
+            ? parsed.error_ratio_threshold
+            : 0.5,
+        error_ratio_min_requests:
+          typeof parsed.error_ratio_min_requests === 'number'
+            ? parsed.error_ratio_min_requests
+            : 5,
+        error_ratio_status_codes: parsed.error_ratio_status_codes || '502,503',
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -492,6 +578,20 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+    scheduler_pool_mode_enabled: formData.scheduler_pool_mode_enabled === true,
+    scheduler_pool_mode_retry_times:
+      formData.scheduler_pool_mode_retry_times ?? 3,
+    scheduler_pool_mode_retry_status_codes:
+      formData.scheduler_pool_mode_retry_status_codes || '401,403,429',
+    upstream_rate_multiplier: formData.upstream_rate_multiplier ?? 1,
+    health_check_enabled: formData.health_check_enabled === true,
+    health_check_auto_enable_enabled:
+      formData.health_check_auto_enable_enabled === true,
+    error_ratio_disable_enabled: formData.error_ratio_disable_enabled === true,
+    error_ratio_window_seconds: formData.error_ratio_window_seconds ?? 60,
+    error_ratio_threshold: formData.error_ratio_threshold ?? 0.5,
+    error_ratio_min_requests: formData.error_ratio_min_requests ?? 5,
+    error_ratio_status_codes: formData.error_ratio_status_codes || '502,503',
   }
   return JSON.stringify(settingObj)
 }
