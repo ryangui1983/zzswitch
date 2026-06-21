@@ -253,9 +253,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		retryParam.SelectRetryChannel(newAPIError, channel)
-		if shouldRecordChannelHealthError(channel, retryParam.RetryChannel) {
-			handleChannelHealthOnError(channel, newAPIError.StatusCode, newAPIError.ErrorWithStatusCode())
-		}
 		if retryParam.RetryChannel != nil {
 			continue
 		}
@@ -385,6 +382,7 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError) bool {
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, recordErrorLog bool) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
+	handleChannelHealthOnChannelError(channelError, err.StatusCode, err.ErrorWithStatusCode())
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if (service.ShouldDisableChannel(err) || service.ShouldDisableChannelByKeyword(err)) && channelError.AutoBan {
@@ -610,7 +608,6 @@ func RelayTask(c *gin.Context) {
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
 				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode), true)
-			handleChannelHealthOnError(channel, taskErr.StatusCode, taskErr.Error.Error())
 		}
 
 		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {

@@ -324,6 +324,25 @@ func (channel *Channel) SetOtherInfo(otherInfo map[string]interface{}) {
 	channel.OtherInfo = string(otherInfoBytes)
 }
 
+func clearChannelStatusReason(info map[string]interface{}) {
+	delete(info, "status_reason")
+	delete(info, "status_time")
+}
+
+func (channel *Channel) clearStatusReasonOnEnabledUpdate() {
+	if channel.Status != common.ChannelStatusEnabled {
+		return
+	}
+	info := channel.GetOtherInfo()
+	if _, hasReason := info["status_reason"]; !hasReason {
+		if _, hasTime := info["status_time"]; !hasTime {
+			return
+		}
+	}
+	clearChannelStatusReason(info)
+	channel.SetOtherInfo(info)
+}
+
 func (channel *Channel) GetTag() string {
 	if channel.Tag == nil {
 		return ""
@@ -563,6 +582,7 @@ func (channel *Channel) Update() error {
 		}
 	}
 	var err error
+	channel.clearStatusReasonOnEnabledUpdate()
 	err = DB.Model(channel).Updates(channel).Error
 	if err != nil {
 		return err
@@ -657,8 +677,12 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 			}
 			channel.Status = status
 			info := channel.GetOtherInfo()
-			info["status_reason"] = reason
-			info["status_time"] = common.GetTimestamp()
+			if status == common.ChannelStatusEnabled {
+				clearChannelStatusReason(info)
+			} else {
+				info["status_reason"] = reason
+				info["status_time"] = common.GetTimestamp()
+			}
 			channel.SetOtherInfo(info)
 			return
 		}
@@ -763,8 +787,12 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			}
 		} else {
 			info := channel.GetOtherInfo()
-			info["status_reason"] = reason
-			info["status_time"] = common.GetTimestamp()
+			if status == common.ChannelStatusEnabled {
+				clearChannelStatusReason(info)
+			} else {
+				info["status_reason"] = reason
+				info["status_time"] = common.GetTimestamp()
+			}
 			channel.SetOtherInfo(info)
 			channel.Status = status
 			shouldUpdateAbilities = true

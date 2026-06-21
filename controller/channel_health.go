@@ -24,6 +24,14 @@ func handleChannelHealthRecordSuccess(channel *model.Channel) {
 	_, _ = recordChannelHealthOutcome(channel.Id, settings.GetErrorRatioWindowSeconds(), false, 200)
 }
 
+func handleChannelHealthOnChannelError(channelError types.ChannelError, statusCode int, reason string) {
+	channel, err := model.CacheGetChannel(channelError.ChannelId)
+	if err != nil {
+		return
+	}
+	handleChannelHealthOnError(channel, statusCode, reason)
+}
+
 func handleChannelHealthOnError(channel *model.Channel, statusCode int, reason string) {
 	if channel == nil || !channel.GetAutoBan() {
 		return
@@ -46,10 +54,6 @@ func handleChannelHealthOnError(channel *model.Channel, statusCode int, reason s
 	if float64(stats.ErrorRequests)/float64(stats.TotalRequests) >= settings.GetErrorRatioThreshold() {
 		service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), fmt.Sprintf("短窗口错误率过高：%d/%d >= %.2f", stats.ErrorRequests, stats.TotalRequests, settings.GetErrorRatioThreshold()))
 	}
-}
-
-func shouldRecordChannelHealthError(cachedChannel *model.Channel, selectedRetryChannel *model.Channel) bool {
-	return cachedChannel == nil || selectedRetryChannel == nil || cachedChannel.Id != selectedRetryChannel.Id
 }
 
 func shouldAutoRecoverChannel(channel *model.Channel) bool {
