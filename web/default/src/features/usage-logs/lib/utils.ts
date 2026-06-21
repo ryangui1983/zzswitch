@@ -196,10 +196,11 @@ export function buildApiParams(config: {
   }
 
   // Build base params from search params
+  const resultType = searchParams.result === 'error' ? 5 : 2
   const params: GetLogsParams = {
     p: page,
     page_size: pageSize,
-    ...(searchParams.type ? { type: processType(searchParams.type) } : {}),
+    type: resultType,
     ...(searchParams.model ? { model_name: String(searchParams.model) } : {}),
     ...(searchParams.token ? { token_name: String(searchParams.token) } : {}),
     ...(searchParams.group ? { group: String(searchParams.group) } : {}),

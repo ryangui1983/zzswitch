@@ -25,6 +25,7 @@ import {
 } from '@/features/usage-logs/section-registry'
 
 const logTypeValues = ['0', '1', '2', '3', '4', '5', '6', '7'] as const
+const logResultValues = ['success', 'error'] as const
 const logTypeSearchSchema = z
   .preprocess(
     (value) => {
@@ -39,6 +40,7 @@ const usageLogsSearchSchema = z.object({
   page: z.number().optional().catch(1),
   pageSize: z.number().optional().catch(undefined),
   type: logTypeSearchSchema.optional(),
+  result: z.enum(logResultValues).optional().catch('success'),
   filter: z.string().optional().catch(''),
   model: z.string().optional().catch(''),
   token: z.string().optional().catch(''),
