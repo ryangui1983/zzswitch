@@ -120,6 +120,11 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 - In React components, use `useTranslation()` and call `t('English key')` for user-facing text.
 - Follow `web/default/AGENTS.md` for detailed frontend conventions, including TypeScript, component structure, styling, accessibility, testing, and build checks.
 
+## Project Notes
+
+- 2026-06: The relay health fix records real upstream channel errors in the short-window health tracker from `processChannelError`, and re-enabling a channel clears stale `status_reason` / `status_time` metadata.
+- 2026-06: Added "分组状态" nav item in `web/default/src/hooks/use-sidebar-data.ts` (between Dashboard and API Keys) with a corresponding iframe route at `web/default/src/routes/_authenticated/group-status/index.tsx` embedding `https://monitor.zzswitch.com/status/status`. Deployed via cross-compiled Linux binary (`GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build`) uploaded to `/opt/zzswitch/newapi-zzswitch/new-api` and rebuilt with `docker compose build --no-cache`.
+
 ### Project Governance
 
 **Protected project information:** The following project-related information is strictly protected and MUST NOT be modified, deleted, replaced, or removed under any circumstances:
