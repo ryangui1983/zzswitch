@@ -3339,7 +3339,7 @@ export function ChannelMutateDrawer({
                               <FormItem>
                                 <FormLabel>{t('Upstream Rate Multiplier')}</FormLabel>
                                 <FormControl>
-                                  <Input type='number' min='0' step='0.01' {...field} />
+                                  <Input type='number' min='0' step='0.0001' {...field} />
                                 </FormControl>
                                 <FormDescription>
                                   {t('Display-only upstream multiplier. It does not affect user billing.')}
@@ -3407,7 +3407,7 @@ export function ChannelMutateDrawer({
                               <FormItem>
                                 <FormLabel>{t('Error Ratio Threshold')}</FormLabel>
                                 <FormControl>
-                                  <Input type='number' min='0' max='1' step='0.01' {...field} />
+                                  <Input type='number' min='0' max='1' step='0.0001' {...field} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -3471,6 +3471,40 @@ export function ChannelMutateDrawer({
                                   <FormLabel>{t('Error Ratio Auto Disable')}</FormLabel>
                                   <FormDescription>
                                     {t('Disable channel when the short-window error ratio reaches the threshold.')}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='probe_block_enabled'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>{t('Block Probe Requests')}</FormLabel>
+                                  <FormDescription>
+                                    {t('Intercept non-streaming requests with max_tokens ≤ 5 (used as availability probes).')}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name='probe_block_fake_success'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>{t('Fake Probe Success')}</FormLabel>
+                                  <FormDescription>
+                                    {t('Return a fake success response for blocked probes instead of an error.')}
                                   </FormDescription>
                                 </div>
                                 <FormControl>

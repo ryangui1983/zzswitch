@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -225,6 +226,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		if blocked, probeErr := maybeBlockProbe(c, channel, request, relayFormat); blocked {
+			if probeErr != nil {
+				newAPIError = probeErr
+				break
+			}
+			if relayInfo.Billing != nil {
+				relayInfo.Billing.Refund(c)
+			}
+			return
+		}
+
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
@@ -288,6 +300,37 @@ func addUsedChannel(c *gin.Context, channelId int) {
 	useChannel := c.GetStringSlice("use_channel")
 	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
 	c.Set("use_channel", useChannel)
+}
+
+func maybeBlockProbe(c *gin.Context, channel *model.Channel, request dto.Request, relayFormat types.RelayFormat) (blocked bool, err *types.NewAPIError) {
+	setting := channel.GetSetting()
+	if !setting.ProbeBlockEnabled {
+		return false, nil
+	}
+	req, ok := request.(*dto.GeneralOpenAIRequest)
+	if !ok || lo.FromPtrOr(req.Stream, false) {
+		return false, nil
+	}
+	maxTokens := lo.FromPtrOr(req.MaxTokens, uint(0))
+	if maxTokens == 0 || maxTokens > 5 {
+		return false, nil
+	}
+	if !setting.ProbeBlockFakeSuccess {
+		return true, types.NewErrorWithStatusCode(
+			fmt.Errorf("this channel does not accept non-streaming probe requests"),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":      "chatcmpl-probe",
+		"object":  "chat.completion",
+		"model":   req.Model,
+		"choices": []gin.H{{"index": 0, "message": gin.H{"role": "assistant", "content": ""}, "finish_reason": "stop"}},
+		"usage":   gin.H{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+	})
+	return true, nil
 }
 
 func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
@@ -380,6 +423,29 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError) bool {
 	return operation_setting.ShouldRetryByStatusCode(code)
 }
 
+// intermediateLogLimiter limits root-user error log writes per channel to prevent MySQL flood
+// when an upstream is down and all concurrent requests try to log simultaneously.
+var intermediateLogLimiter = struct {
+	mu      sync.Mutex
+	counts  map[int]int
+	resetAt time.Time
+}{counts: make(map[int]int), resetAt: time.Now().Add(10 * time.Second)}
+
+func shouldRecordIntermediateLog(channelId int) bool {
+	intermediateLogLimiter.mu.Lock()
+	defer intermediateLogLimiter.mu.Unlock()
+	now := time.Now()
+	if now.After(intermediateLogLimiter.resetAt) {
+		intermediateLogLimiter.counts = make(map[int]int)
+		intermediateLogLimiter.resetAt = now.Add(10 * time.Second)
+	}
+	if intermediateLogLimiter.counts[channelId] >= 10 {
+		return false
+	}
+	intermediateLogLimiter.counts[channelId]++
+	return true
+}
+
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, recordErrorLog bool) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
 	handleChannelHealthOnChannelError(channelError, err.StatusCode, err.ErrorWithStatusCode())
@@ -402,6 +468,9 @@ func recordChannelErrorLog(c *gin.Context, channelError types.ChannelError, err 
 }
 
 func recordRootChannelErrorLog(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
+	if !shouldRecordIntermediateLog(channelError.ChannelId) {
+		return
+	}
 	rootUser := model.GetRootUser()
 	if rootUser == nil {
 		logger.LogError(c, "failed to get root user for channel error log: root user is nil")

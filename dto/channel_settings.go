@@ -26,6 +26,8 @@ type ChannelSettings struct {
 	ErrorRatioThreshold               *float64 `json:"error_ratio_threshold,omitempty"`
 	ErrorRatioMinRequests             *int     `json:"error_ratio_min_requests,omitempty"`
 	ErrorRatioStatusCodes             string   `json:"error_ratio_status_codes,omitempty"`
+	ProbeBlockEnabled                 bool     `json:"probe_block_enabled,omitempty"`
+	ProbeBlockFakeSuccess             bool     `json:"probe_block_fake_success,omitempty"`
 }
 
 func (s ChannelSettings) GetSchedulerPoolModeRetryTimes() int {
@@ -113,7 +115,7 @@ func (s ChannelSettings) ShouldTrackErrorRatioStatusCode(code int) bool {
 	}
 	statusCodes := s.ErrorRatioStatusCodes
 	if statusCodes == "" {
-		statusCodes = "502,503"
+		statusCodes = "500-599"
 	}
 	ranges, err := operation_setting.ParseHTTPStatusCodeRanges(statusCodes)
 	if err != nil || len(ranges) == 0 {
