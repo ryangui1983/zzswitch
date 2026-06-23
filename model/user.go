@@ -43,8 +43,9 @@ type User struct {
 	Group            string         `json:"group" gorm:"type:varchar(64);default:'default'"`
 	AffCode          string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount         int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
-	AffQuota         int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
-	AffHistoryQuota  int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
+	AffQuota         int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`                             // 邀请剩余额度
+	AffHistoryQuota  int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"`                   // 邀请历史额度
+	AffCommissionEarned int64       `json:"aff_commission_earned" gorm:"type:bigint;default:0;column:aff_commission_earned"`  // 返佣累计统计
 	InviterId        int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
 	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
@@ -890,6 +891,34 @@ func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error)
 		Setting: setting,
 	}
 	return userBase.GetSetting(), nil
+}
+
+func GetUserInviterId(userId int) int {
+	var inviterId int
+	DB.Model(&User{}).Select("inviter_id").Where("id = ?", userId).Scan(&inviterId)
+	return inviterId
+}
+
+func GiveAffCommission(userId int, quota int) {
+	if quota <= 0 || common.AffCommissionRate <= 0 {
+		return
+	}
+	commission := int(float64(quota) * common.AffCommissionRate)
+	if commission <= 0 {
+		return
+	}
+	inviterId := GetUserInviterId(userId)
+	if inviterId == 0 {
+		return
+	}
+	if err := IncreaseUserQuota(inviterId, commission, true); err != nil {
+		common.SysLog(fmt.Sprintf("GiveAffCommission: failed to increase quota inviter=%d user=%d: %v", inviterId, userId, err))
+		return
+	}
+	if err := DB.Model(&User{}).Where("id = ?", inviterId).Update("aff_commission_earned", gorm.Expr("aff_commission_earned + ?", commission)).Error; err != nil {
+		common.SysLog(fmt.Sprintf("GiveAffCommission: failed to update stats inviter=%d: %v", inviterId, err))
+	}
+	RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请返佣 %s（来自用户 %d）", logger.LogQuota(commission), userId))
 }
 
 func IncreaseUserQuota(id int, quota int, db bool) (err error) {
