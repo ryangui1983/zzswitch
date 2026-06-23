@@ -492,6 +492,22 @@ export function formatQuota(quota: number): string {
   })
 }
 
+export function getChannelUpstreamRateMultiplier(channel: Channel): number {
+  const settings = parseChannelSettings(channel.setting)
+  const multiplier = settings.upstream_rate_multiplier
+
+  return typeof multiplier === 'number' && Number.isFinite(multiplier)
+    ? multiplier
+    : 1
+}
+
+export function convertQuotaByUpstreamRateMultiplier(
+  quota: number,
+  multiplier: number
+): number {
+  return multiplier > 0 ? quota * multiplier : quota
+}
+
 // ============================================================================
 // Priority & Weight Utilities
 // ============================================================================
@@ -641,6 +657,7 @@ export function aggregateChannelsByTag(
         status: undefined as unknown as number,
         group: '',
         used_quota: 0,
+        upstream_cost: 0,
         response_time: 0,
         priority: -1 as unknown as number | null,
         weight: -1 as unknown as number | null,
@@ -665,7 +682,13 @@ export function aggregateChannelsByTag(
     const childCount = tagRow.children.length
 
     // Aggregate used_quota (sum)
-    tagRow.used_quota += channel.used_quota
+    tagRow.used_quota += convertQuotaByUpstreamRateMultiplier(
+      channel.used_quota,
+      getChannelUpstreamRateMultiplier(channel)
+    )
+
+    // Aggregate upstream_cost (sum stored values)
+    tagRow.upstream_cost = (tagRow.upstream_cost || 0) + (channel.upstream_cost || 0)
 
     // Aggregate response_time (average)
     tagRow.response_time =

@@ -39,6 +39,7 @@ type Channel struct {
 	Models             string  `json:"models"`
 	Group              string  `json:"group" gorm:"type:varchar(64);default:'default'"`
 	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`
+	UpstreamCost       float64 `json:"upstream_cost" gorm:"default:0"`
 	ModelMapping       *string `json:"model_mapping" gorm:"type:text"`
 	//MaxInputTokens     *int    `json:"max_input_tokens" gorm:"default:0"`
 	StatusCodeMapping *string `json:"status_code_mapping" gorm:"type:varchar(1024);default:''"`
@@ -892,6 +893,13 @@ func updateChannelUsedQuota(id int, quota int) {
 	err := DB.Model(&Channel{}).Where("id = ?", id).Update("used_quota", gorm.Expr("used_quota + ?", quota)).Error
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to update channel used quota: channel_id=%d, delta_quota=%d, error=%v", id, quota, err))
+	}
+}
+
+func UpdateChannelUpstreamCost(id int, cost float64) {
+	err := DB.Model(&Channel{}).Where("id = ?", id).Update("upstream_cost", gorm.Expr("upstream_cost + ?", cost)).Error
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to update channel upstream cost: channel_id=%d, delta_cost=%f, error=%v", id, cost, err))
 	}
 }
 

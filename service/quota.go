@@ -224,6 +224,14 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		if groupRatio > 0 {
+			channelRate := 1.0
+			if relayInfo.ChannelMeta != nil {
+				channelRate = relayInfo.ChannelMeta.ChannelSetting.GetUpstreamRateMultiplier()
+			}
+			model.UpdateChannelUpstreamCost(relayInfo.ChannelId, float64(quota)/groupRatio*channelRate)
+		}
+		model.GiveAffCommission(relayInfo.UserId, quota)
 	}
 
 	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
@@ -345,6 +353,14 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		if groupRatio > 0 {
+			channelRate := 1.0
+			if relayInfo.ChannelMeta != nil {
+				channelRate = relayInfo.ChannelMeta.ChannelSetting.GetUpstreamRateMultiplier()
+			}
+			model.UpdateChannelUpstreamCost(relayInfo.ChannelId, float64(quota)/groupRatio*channelRate)
+		}
+		model.GiveAffCommission(relayInfo.UserId, quota)
 	}
 
 	if err := SettleBilling(ctx, relayInfo, quota); err != nil {

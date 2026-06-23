@@ -372,6 +372,14 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
+		if summary.GroupRatio > 0 {
+			channelRate := 1.0
+			if relayInfo.ChannelMeta != nil {
+				channelRate = relayInfo.ChannelMeta.ChannelSetting.GetUpstreamRateMultiplier()
+			}
+			model.UpdateChannelUpstreamCost(relayInfo.ChannelId, float64(summary.Quota)/summary.GroupRatio*channelRate)
+		}
+		model.GiveAffCommission(relayInfo.UserId, summary.Quota)
 	}
 
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {

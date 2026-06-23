@@ -35,7 +35,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { BadgeListCell } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { ProviderBadge } from '@/components/provider-badge'
-import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
+import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
 import { Button } from '@/components/ui/button'
@@ -48,7 +48,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  formatCurrencyFromUSD,
   formatQuotaWithCurrency,
   getCurrencyLabel,
 } from '@/lib/currency'
@@ -58,13 +57,11 @@ import {
 } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
-import { getCodexUsage, updateChannel } from '../api'
+import { updateChannel } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
-  formatBalance,
   formatRelativeTime,
   formatResponseTime,
-  getBalanceVariant,
   getChannelTypeIcon,
   getChannelTypeLabel,
   getResponseTimeConfig,
@@ -72,9 +69,9 @@ import {
   parseModelsList,
   parseGroupsList,
   parseChannelSettings,
+  getChannelUpstreamRateMultiplier,
   handleUpdateChannelField,
   handleUpdateTagField,
-  handleUpdateChannelBalance,
   channelsQueryKeys,
   isTagAggregateRow,
   type TagRow,
@@ -84,10 +81,6 @@ import type { Channel } from '../types'
 import { useChannels } from './channels-provider'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DataTableTagRowActions } from './data-table-tag-row-actions'
-import {
-  CodexUsageDialog,
-  type CodexUsageDialogData,
-} from './dialogs/codex-usage-dialog'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
 function parseIonetMeta(otherInfo: string | null | undefined): null | {
@@ -294,21 +287,12 @@ const SENSITIVE_MASK = '••••'
  */
 function BalanceCell({ channel }: { channel: Channel }) {
   const { t, i18n } = useTranslation()
-  const queryClient = useQueryClient()
   const { sensitiveVisible } = useChannels()
   const isTagRow = isTagAggregateRow(channel)
-  const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
-  const settings = parseChannelSettings(channel.setting)
-  const multiplier =
-    typeof settings.upstream_rate_multiplier === 'number'
-      ? settings.upstream_rate_multiplier
-      : 1
+  const upstreamCost = channel.upstream_cost || 0
+  const multiplier = isTagRow ? 1 : getChannelUpstreamRateMultiplier(channel)
   const multiplierDisplay = `${multiplier}x`
-  const [isUpdating, setIsUpdating] = useState(false)
-  const [codexUsageOpen, setCodexUsageOpen] = useState(false)
-  const [codexUsageResponse, setCodexUsageResponse] =
-    useState<CodexUsageDialogData | null>(null)
   const currencyLabel = getCurrencyLabel()
   const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
   const withSuffix = (value: string) =>
@@ -317,21 +301,23 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const locale = i18n.resolvedLanguage || i18n.language
   // Precise values are kept for the tooltip; long values are shown compactly inline.
   const usedFull = withSuffix(formatQuotaValue(usedQuota))
-  const remainingFull = withSuffix(formatBalance(balance))
+  const costFull = withSuffix(formatQuotaValue(upstreamCost))
   const usedDisplay =
     usedFull.length > MAX_INLINE_BALANCE_CHARS
       ? withSuffix(
           formatQuotaWithCurrency(usedQuota, { compact: true, locale })
         )
       : usedFull
-  const remainingDisplay =
-    remainingFull.length > MAX_INLINE_BALANCE_CHARS
-      ? withSuffix(formatCurrencyFromUSD(balance, { compact: true, locale }))
-      : remainingFull
+  const costDisplay =
+    costFull.length > MAX_INLINE_BALANCE_CHARS
+      ? withSuffix(
+          formatQuotaWithCurrency(upstreamCost, { compact: true, locale })
+        )
+      : costFull
   const usedLabel = `${t('Used:')} ${usedFull}`
-  const remainingLabel = `${t('Remaining:')} ${remainingFull}`
+  const costLabel = `${t('Actual Cost:')} ${costFull}`
   const maskedUsedLabel = `${t('Used:')} ${SENSITIVE_MASK}`
-  const maskedRemainingLabel = `${t('Remaining:')} ${SENSITIVE_MASK}`
+  const maskedCostLabel = `${t('Actual Cost:')} ${SENSITIVE_MASK}`
 
   // Tag row: only show cumulative used quota
   if (isTagRow) {
@@ -362,55 +348,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
     )
   }
 
-  // Regular channel row: show used and remaining with click to update
-  const variant = getBalanceVariant(balance)
-
-  const handleClickUpdate = async () => {
-    if (isUpdating) {
-      return
-    }
-
-    setIsUpdating(true)
-    if (channel.type === 57) {
-      try {
-        const res = await getCodexUsage(channel.id)
-        if (!res.success) {
-          throw new Error(res.message || t('Failed to fetch usage'))
-        }
-        setCodexUsageResponse(res)
-        setCodexUsageOpen(true)
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : t('Failed to fetch usage')
-        )
-      } finally {
-        setIsUpdating(false)
-      }
-      return
-    }
-
-    await handleUpdateChannelBalance(channel.id, queryClient)
-    setIsUpdating(false)
-  }
-  let remainingBadgeLabel = sensitiveVisible ? remainingDisplay : SENSITIVE_MASK
-  if (sensitiveVisible && isUpdating) {
-    remainingBadgeLabel = t('Updating...')
-  } else if (sensitiveVisible && channel.type === 57) {
-    remainingBadgeLabel = t('Account Info')
-  }
-  let remainingTooltipLabel = remainingLabel
-  if (!sensitiveVisible) {
-    remainingTooltipLabel = maskedRemainingLabel
-  } else if (channel.type === 57) {
-    remainingTooltipLabel = t('Click to view Codex usage')
-  }
-  let remainingBadgeVariant: StatusBadgeProps['variant'] = variant
-  if (channel.type === 57) {
-    remainingBadgeVariant = 'info'
-  } else if (isUpdating) {
-    remainingBadgeVariant = 'neutral'
-  }
-
+  // Regular channel row: show used and actual cost (upstream estimate)
   return (
     <TooltipProvider>
       <div className='-ml-1.5 flex items-center gap-1'>
@@ -429,61 +367,27 @@ function BalanceCell({ channel }: { channel: Channel }) {
           />
           <TooltipContent>
             <p>{sensitiveVisible ? usedLabel : maskedUsedLabel}</p>
-            {sensitiveVisible && <p>{`${t('Multiplier:')} ${multiplierDisplay}`}</p>}
           </TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger
             render={
               <StatusBadge
-                label={remainingBadgeLabel}
-                variant={remainingBadgeVariant}
+                label={sensitiveVisible ? costDisplay : SENSITIVE_MASK}
+                variant='neutral'
                 size='sm'
                 copyable={false}
                 showDot={false}
-                className='cursor-pointer'
-                onClick={handleClickUpdate}
+                className='cursor-help'
               />
             }
           />
           <TooltipContent>
-            <p>{remainingTooltipLabel}</p>
-            {channel.type !== 57 && <p>{t('Click to update balance')}</p>}
+            <p>{sensitiveVisible ? costLabel : maskedCostLabel}</p>
+            <p>{`${t('Multiplier:')} ${multiplierDisplay}`}</p>
           </TooltipContent>
         </Tooltip>
       </div>
-
-      <CodexUsageDialog
-        open={codexUsageOpen}
-        onOpenChange={setCodexUsageOpen}
-        channelName={channel.name}
-        channelId={channel.id}
-        channelDisplayName={sensitiveVisible ? undefined : SENSITIVE_MASK}
-        channelDisplayId={sensitiveVisible ? undefined : SENSITIVE_MASK}
-        response={codexUsageResponse}
-        onRefresh={async () => {
-          if (isUpdating) {
-            return
-          }
-          setIsUpdating(true)
-          try {
-            const res = await getCodexUsage(channel.id)
-            if (!res.success) {
-              throw new Error(res.message || t('Failed to fetch usage'))
-            }
-            setCodexUsageResponse(res)
-          } catch (error) {
-            toast.error(
-              error instanceof Error
-                ? error.message
-                : t('Failed to fetch usage')
-            )
-          } finally {
-            setIsUpdating(false)
-          }
-        }}
-        isRefreshing={isUpdating}
-      />
     </TooltipProvider>
   )
 }
@@ -1091,10 +995,38 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         enableSorting: false,
       },
 
+      // Upstream multiplier column
+      {
+        id: 'upstream_rate_multiplier',
+        header: t('Multiplier'),
+        meta: { mobileHidden: true },
+        cell: ({ row }) => {
+          const channel = row.original as Channel
+          const isTagRow = isTagAggregateRow(channel)
+
+          if (isTagRow) {
+            return <span className='text-muted-foreground text-xs'>-</span>
+          }
+
+          const multiplier = getChannelUpstreamRateMultiplier(channel)
+          return (
+            <StatusBadge
+              label={`${multiplier}x`}
+              variant='neutral'
+              size='sm'
+              copyable={false}
+              className='-ml-1.5'
+            />
+          )
+        },
+        size: 90,
+        enableSorting: false,
+      },
+
       // Balance column (Used/Remaining)
       {
         accessorKey: 'balance',
-        header: t('Used / Remaining'),
+        header: t('Used / Cost'),
         cell: ({ row }) => <BalanceCell channel={row.original} />,
         size: 180,
       },
