@@ -51,7 +51,7 @@ import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
-type LogResultValue = 'success' | 'error'
+type LogResultValue = 'success' | 'error' | 'intermediate'
 
 type CommonLogDraft = {
   sourceKey: string
@@ -60,7 +60,9 @@ type CommonLogDraft = {
 }
 
 function getLogResultValue(value: unknown): LogResultValue {
-  return value === 'error' ? 'error' : 'success'
+  if (value === 'error') return 'error'
+  if (value === 'intermediate') return 'intermediate'
+  return 'success'
 }
 
 function buildSearchSourceKey(values: {
@@ -267,7 +269,7 @@ export function CommonLogsFilterBar<TData>(
     filters.upstreamRequestId,
   ].filter(Boolean).length
   const sensitiveType = sensitiveVisible ? 'text' : 'password'
-  const logResultLabel = logResult === 'error' ? t('Failed') : t('Success')
+  const logResultLabel = logResult === 'error' ? t('Failed') : logResult === 'intermediate' ? t('Intermediate Error') : t('Success')
 
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
@@ -334,10 +336,11 @@ export function CommonLogsFilterBar<TData>(
         items={[
           { value: 'success', label: t('Success') },
           { value: 'error', label: t('Failed') },
+          { value: 'intermediate', label: t('Intermediate Error') },
         ]}
         value={logResult}
         onValueChange={(value) => {
-          handleResultChange(value === 'error' ? 'error' : 'success')
+          handleResultChange(value === 'error' ? 'error' : value === 'intermediate' ? 'intermediate' : 'success')
         }}
       >
         <SelectTrigger>
@@ -347,6 +350,7 @@ export function CommonLogsFilterBar<TData>(
           <SelectGroup>
             <SelectItem value='success'>{t('Success')}</SelectItem>
             <SelectItem value='error'>{t('Failed')}</SelectItem>
+            <SelectItem value='intermediate'>{t('Intermediate Error')}</SelectItem>
           </SelectGroup>
         </SelectContent>
       </Select>

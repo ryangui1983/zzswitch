@@ -240,6 +240,8 @@ export interface UserWalletData {
   aff_history_quota: number
   /** Number of successful affiliate invites */
   aff_count: number
+  /** Cumulative referral commission earned (direct-to-balance) */
+  aff_commission_earned: number
   /** User group */
   group: string
 }

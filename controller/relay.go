@@ -6,8 +6,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"runtime"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -423,27 +424,51 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError) bool {
 	return operation_setting.ShouldRetryByStatusCode(code)
 }
 
-// intermediateLogLimiter limits root-user error log writes per channel to prevent MySQL flood
-// when an upstream is down and all concurrent requests try to log simultaneously.
-var intermediateLogLimiter = struct {
-	mu      sync.Mutex
-	counts  map[int]int
-	resetAt time.Time
-}{counts: make(map[int]int), resetAt: time.Now().Add(10 * time.Second)}
+// intermediateLogQueue buffers root-user channel error log writes to prevent MySQL flood.
+// Workers drain the queue asynchronously; entries are dropped only when the queue is full.
+type intermediateLogJob struct {
+	c            *gin.Context
+	channelError types.ChannelError
+	err          *types.NewAPIError
+	userId       int
+	username     string
+}
 
-func shouldRecordIntermediateLog(channelId int) bool {
-	intermediateLogLimiter.mu.Lock()
-	defer intermediateLogLimiter.mu.Unlock()
-	now := time.Now()
-	if now.After(intermediateLogLimiter.resetAt) {
-		intermediateLogLimiter.counts = make(map[int]int)
-		intermediateLogLimiter.resetAt = now.Add(10 * time.Second)
+const intermediateLogQueueSize = 4096
+
+var (
+	intermediateLogQueue       = make(chan intermediateLogJob, intermediateLogQueueSize)
+	intermediateLogDropLastAt  atomic.Int64
+)
+
+func init() {
+	workers := max(4, runtime.GOMAXPROCS(0)*2)
+	for range workers {
+		go func() {
+			for job := range intermediateLogQueue {
+				recordChannelErrorLogForUser(job.c, job.channelError, job.err, job.userId, job.username, true)
+			}
+		}()
 	}
-	if intermediateLogLimiter.counts[channelId] >= 10 {
-		return false
+}
+
+func enqueueIntermediateLog(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
+	job := intermediateLogJob{
+		c:            c.Copy(),
+		channelError: channelError,
+		err:          err,
+		userId:       c.GetInt("id"),
+		username:     c.GetString("username"),
 	}
-	intermediateLogLimiter.counts[channelId]++
-	return true
+	select {
+	case intermediateLogQueue <- job:
+	default:
+		now := time.Now().Unix()
+		last := intermediateLogDropLastAt.Load()
+		if now-last >= 60 && intermediateLogDropLastAt.CompareAndSwap(last, now) {
+			common.SysError(fmt.Sprintf("intermediate log queue full, dropping entries (cap=%d)", intermediateLogQueueSize))
+		}
+	}
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, recordErrorLog bool) {
@@ -468,15 +493,7 @@ func recordChannelErrorLog(c *gin.Context, channelError types.ChannelError, err 
 }
 
 func recordRootChannelErrorLog(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
-	if !shouldRecordIntermediateLog(channelError.ChannelId) {
-		return
-	}
-	rootUser := model.GetRootUser()
-	if rootUser == nil {
-		logger.LogError(c, "failed to get root user for channel error log: root user is nil")
-		return
-	}
-	recordChannelErrorLogForUser(c, channelError, err, rootUser.Id, rootUser.Username, true)
+	enqueueIntermediateLog(c, channelError, err)
 }
 
 func recordChannelErrorLogForUser(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, userId int, username string, intermediateChannelError bool) {
@@ -517,7 +534,11 @@ func recordChannelErrorLogForUser(c *gin.Context, channelError types.ChannelErro
 	if useTimeSeconds < 0 {
 		useTimeSeconds = 0
 	}
-	model.RecordErrorLogForUsername(c, userId, username, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+	logType := model.LogTypeError
+	if intermediateChannelError {
+		logType = model.LogTypeIntermediateError
+	}
+	model.RecordErrorLogForUsername(c, logType, userId, username, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 }
 
 func RelayMidjourney(c *gin.Context) {

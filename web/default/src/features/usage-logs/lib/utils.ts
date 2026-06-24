@@ -196,7 +196,7 @@ export function buildApiParams(config: {
   }
 
   // Build base params from search params
-  const resultType = searchParams.result === 'error' ? 5 : 2
+  const resultType = searchParams.result === 'error' ? 5 : searchParams.result === 'intermediate' ? 8 : 2
   const params: GetLogsParams = {
     p: page,
     page_size: pageSize,

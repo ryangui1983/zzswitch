@@ -62,9 +62,10 @@ const (
 	LogTypeConsume = 2
 	LogTypeManage  = 3
 	LogTypeSystem  = 4
-	LogTypeError   = 5
-	LogTypeRefund  = 6
-	LogTypeLogin   = 7
+	LogTypeError              = 5
+	LogTypeRefund             = 6
+	LogTypeLogin              = 7
+	LogTypeIntermediateError  = 8
 )
 
 func formatUserLogs(logs []*Log, startIdx int) {
@@ -231,10 +232,10 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
-	RecordErrorLogForUsername(c, userId, c.GetString("username"), channelId, modelName, tokenName, content, tokenId, useTimeSeconds, isStream, group, other)
+	RecordErrorLogForUsername(c, LogTypeError, userId, c.GetString("username"), channelId, modelName, tokenName, content, tokenId, useTimeSeconds, isStream, group, other)
 }
 
-func RecordErrorLogForUsername(c *gin.Context, userId int, username string, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
+func RecordErrorLogForUsername(c *gin.Context, logType int, userId int, username string, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
 	requestId := c.GetString(common.RequestIdKey)
@@ -251,7 +252,7 @@ func RecordErrorLogForUsername(c *gin.Context, userId int, username string, chan
 		UserId:           userId,
 		Username:         username,
 		CreatedAt:        common.GetTimestamp(),
-		Type:             LogTypeError,
+		Type:             logType,
 		Content:          content,
 		PromptTokens:     0,
 		CompletionTokens: 0,

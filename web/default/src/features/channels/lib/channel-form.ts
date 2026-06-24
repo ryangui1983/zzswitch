@@ -375,7 +375,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   error_ratio_window_seconds: 60,
   error_ratio_threshold: 0.5,
   error_ratio_min_requests: 5,
-  error_ratio_status_codes: '502,503',
+  error_ratio_status_codes: '500-599',
   probe_block_enabled: false,
   probe_block_fake_success: false,
   // Type-specific settings
@@ -425,7 +425,7 @@ export function transformChannelToFormDefaults(
     error_ratio_window_seconds: 60,
     error_ratio_threshold: 0.5,
     error_ratio_min_requests: 5,
-    error_ratio_status_codes: '502,503',
+    error_ratio_status_codes: '500-599',
     probe_block_enabled: false,
     probe_block_fake_success: false,
   }
