@@ -60,6 +60,7 @@ const numericString = z.string().refine((value) => {
 
 const monitoringSchema = z.object({
   QuotaRemindThreshold: numericString,
+  OpsAssistantURL: z.string(),
   perf_metrics_setting: z.object({
     enabled: z.boolean(),
     flush_interval: z.coerce.number().min(1),
@@ -73,6 +74,7 @@ type MonitoringFormValues = z.output<typeof monitoringSchema>
 
 type FlatMonitoringDefaults = {
   QuotaRemindThreshold: string
+  OpsAssistantURL: string
   'perf_metrics_setting.enabled': boolean
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'minute' | '5min' | 'hour'
@@ -87,6 +89,7 @@ const buildFormDefaults = (
   defaults: MonitoringSettingsSectionProps['defaultValues']
 ): MonitoringFormInput => ({
   QuotaRemindThreshold: defaults.QuotaRemindThreshold ?? '',
+  OpsAssistantURL: defaults.OpsAssistantURL ?? '',
   perf_metrics_setting: {
     enabled: defaults['perf_metrics_setting.enabled'],
     flush_interval: defaults['perf_metrics_setting.flush_interval'],
@@ -99,6 +102,7 @@ const normalizeDefaults = (
   defaults: MonitoringSettingsSectionProps['defaultValues']
 ): FlatMonitoringDefaults => ({
   QuotaRemindThreshold: (defaults.QuotaRemindThreshold ?? '').trim(),
+  OpsAssistantURL: (defaults.OpsAssistantURL ?? '').trim(),
   'perf_metrics_setting.enabled': defaults['perf_metrics_setting.enabled'],
   'perf_metrics_setting.flush_interval':
     defaults['perf_metrics_setting.flush_interval'],
@@ -111,6 +115,7 @@ const normalizeFormValues = (
   values: MonitoringFormValues
 ): FlatMonitoringDefaults => ({
   QuotaRemindThreshold: values.QuotaRemindThreshold.trim(),
+  OpsAssistantURL: values.OpsAssistantURL.trim(),
   'perf_metrics_setting.enabled': values.perf_metrics_setting.enabled,
   'perf_metrics_setting.flush_interval':
     values.perf_metrics_setting.flush_interval,
@@ -200,6 +205,29 @@ export function MonitoringSettingsSection({
                 </FormControl>
                 <FormDescription>
                   {t('Send email alerts when a user falls below this quota')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='OpsAssistantURL'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Ops Assistant Webhook URL')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='text'
+                    placeholder='http://172.18.0.1:3100'
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'URL for ops assistant to receive real-time channel dispatch/complete events',
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

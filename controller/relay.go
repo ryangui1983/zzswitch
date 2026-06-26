@@ -215,6 +215,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relayInfo.ResetAttemptTiming(attemptStart)
 
 		addUsedChannel(c, channel.Id)
+		common.SysLog(fmt.Sprintf("About to enqueue webhook for channel %d, requestId %s", channel.Id, requestId))
+		enqueueOpsWebhook(opsWebhookEvent{
+			Event:     "dispatch",
+			ChannelID: channel.Id,
+			RequestID: requestId,
+			Ts:        time.Now().UnixMilli(),
+		})
+		common.SysLog(fmt.Sprintf("Webhook enqueued for channel %d", channel.Id))
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
@@ -248,6 +256,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		default:
 			newAPIError = relayHandler(c, relayInfo)
 		}
+
+		enqueueOpsWebhook(opsWebhookEvent{
+			Event:        "complete",
+			ChannelID:    channel.Id,
+			RequestID:    requestId,
+			FirstTokenMs: opsFirstTokenMs(relayInfo, attemptStart),
+			Success:      newAPIError == nil,
+			Ts:           time.Now().UnixMilli(),
+		})
 
 		if newAPIError == nil {
 			handleChannelHealthRecordSuccess(channel)

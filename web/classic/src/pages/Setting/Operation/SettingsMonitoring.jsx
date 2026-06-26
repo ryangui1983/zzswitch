@@ -44,6 +44,7 @@ export default function SettingsMonitoring(props) {
       '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
+    OpsAssistantURL: '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -273,6 +274,17 @@ export default function SettingsMonitoring(props) {
                   autosize={{ minRows: 6, maxRows: 12 }}
                   onChange={(value) =>
                     setInputs({ ...inputs, AutomaticDisableKeywords: value })
+                  }
+                />
+                <Form.Input
+                  label={t('运营助手 Webhook URL')}
+                  placeholder={t('例如：http://172.18.0.1:3100')}
+                  extraText={t(
+                    '填写运营助手的地址，用于实时推送渠道调度事件（dispatch/complete）',
+                  )}
+                  field={'OpsAssistantURL'}
+                  onChange={(value) =>
+                    setInputs({ ...inputs, OpsAssistantURL: value })
                   }
                 />
               </Col>

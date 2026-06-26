@@ -284,6 +284,7 @@ export type OperationsSettings = {
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
   QuotaRemindThreshold: string
+  OpsAssistantURL: string
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string

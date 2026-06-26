@@ -30,6 +30,7 @@ const defaultOperationsSettings: OperationsSettings = {
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
   QuotaRemindThreshold: '',
+  OpsAssistantURL: '',
   SMTPServer: '',
   SMTPPort: '',
   SMTPAccount: '',
