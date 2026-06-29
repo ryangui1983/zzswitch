@@ -84,13 +84,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
+			logger.LogError(c, fmt.Sprintf("failed to unmarshal stream response: %s, raw_data=%s", err.Error(), data))
 			sr.Error(err)
 			return
 		}
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
 		case "response.completed":
+			logger.LogInfo(c, fmt.Sprintf("responses completed event, request_id=%s data=%s", info.RequestId, data))
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
 					if streamResponse.Response.Usage.InputTokens != 0 {
@@ -130,6 +131,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 	})
 
+	logger.LogInfo(c, fmt.Sprintf("responses stream ended, request_id=%s end_reason=%s received=%d usage={prompt:%d completion:%d}",
+		info.RequestId, info.StreamStatus.EndReason, info.ReceivedResponseCount, usage.PromptTokens, usage.CompletionTokens))
+
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
 		tempStr := responseTextBuilder.String()
@@ -137,6 +141,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			// 非正常结束，使用输出文本的 token 数量
 			completionTokens := service.CountTextToken(tempStr, info.UpstreamModelName)
 			usage.CompletionTokens = completionTokens
+			logger.LogInfo(c, fmt.Sprintf("responses fallback token count, request_id=%s estimated_completion=%d text_len=%d",
+				info.RequestId, completionTokens, len(tempStr)))
 		}
 	}
 

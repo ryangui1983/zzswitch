@@ -443,6 +443,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		case "response.function_call_arguments.done":
 
 		case "response.completed":
+				logger.LogInfo(c, fmt.Sprintf("responses completed event (chat via responses), request_id=%s data=%s", info.RequestId, data))
 			if streamResp.Response != nil {
 				if streamResp.Response.Model != "" {
 					model = streamResp.Response.Model

@@ -213,6 +213,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		attemptStart := time.Now()
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, attemptStart)
 		relayInfo.ResetAttemptTiming(attemptStart)
+		// Wire TTFB webhook: fire once when first token is received so ops-assistant
+		// can immediately remove the request from inflight (avoids stuck-timeout miscount).
+		capturedChannelID := channel.Id
+		capturedRequestID := requestId
+		relayInfo.OnFirstToken = func() {
+			enqueueOpsWebhook(opsWebhookEvent{
+				Event:     "ttfb",
+				ChannelID: capturedChannelID,
+				RequestID: capturedRequestID,
+				Ts:        time.Now().UnixMilli(),
+			})
+		}
 
 		addUsedChannel(c, channel.Id)
 		common.SysLog(fmt.Sprintf("About to enqueue webhook for channel %d, requestId %s", channel.Id, requestId))
