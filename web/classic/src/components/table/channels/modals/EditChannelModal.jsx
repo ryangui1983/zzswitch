@@ -204,6 +204,7 @@ const EditChannelModal = (props) => {
     // 字段透传控制默认值
     allow_service_tier: false,
     disable_store: false, // false = 允许透传（默认开启）
+    disable_image_generation_tool: false,
     allow_safety_identifier: false,
     allow_include_obfuscation: false,
     allow_inference_geo: false,
@@ -901,6 +902,7 @@ const EditChannelModal = (props) => {
           // 读取字段透传控制设置
           data.allow_service_tier = parsedSettings.allow_service_tier || false;
           data.disable_store = parsedSettings.disable_store || false;
+          data.disable_image_generation_tool = parsedSettings.disable_image_generation_tool || false;
           data.allow_safety_identifier =
             parsedSettings.allow_safety_identifier || false;
           data.allow_include_obfuscation =
@@ -934,7 +936,7 @@ const EditChannelModal = (props) => {
           data.is_enterprise_account = false;
           data.allow_service_tier = false;
           data.disable_store = false;
-          data.allow_safety_identifier = false;
+          data.disable_image_generation_tool = false;
           data.allow_include_obfuscation = false;
           data.allow_inference_geo = false;
           data.allow_speed = false;
@@ -1784,6 +1786,7 @@ const EditChannelModal = (props) => {
       // 仅 OpenAI 渠道需要 store / safety_identifier / include_obfuscation
       if (localInputs.type === 1) {
         settings.disable_store = localInputs.disable_store === true;
+        settings.disable_image_generation_tool = localInputs.disable_image_generation_tool === true;
         settings.allow_safety_identifier =
           localInputs.allow_safety_identifier === true;
         settings.allow_include_obfuscation =
@@ -1836,6 +1839,7 @@ const EditChannelModal = (props) => {
     // 清理字段透传控制的临时字段
     delete localInputs.allow_service_tier;
     delete localInputs.disable_store;
+    delete localInputs.disable_image_generation_tool;
     delete localInputs.allow_safety_identifier;
     delete localInputs.allow_include_obfuscation;
     delete localInputs.allow_inference_geo;
@@ -2485,6 +2489,7 @@ const EditChannelModal = (props) => {
                       </div>
                       <Form.Switch field='allow_service_tier' label={t('允许 service_tier 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_service_tier', value)} extraText={t('service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用')} />
                       <Form.Switch field='disable_store' label={t('禁用 store 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('disable_store', value)} extraText={t('store 字段用于授权 OpenAI 存储请求数据以评估和优化产品。默认关闭，开启后可能导致 Codex 无法正常使用')} />
+                      <Form.Switch field='disable_image_generation_tool' label={t('过滤 image_generation 工具')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('disable_image_generation_tool', value)} extraText={t('开启后将在转发前从请求的 tools 数组中移除 image_generation，避免上游不支持生图时返回 403 错误')} />
                       <Form.Switch field='allow_safety_identifier' label={t('允许 safety_identifier 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_safety_identifier', value)} extraText={t('safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私')} />
                       <Form.Switch field='allow_include_obfuscation' label={t('允许 stream_options.include_obfuscation 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_include_obfuscation', value)} extraText={t('include_obfuscation 用于控制 Responses 流混淆字段。默认关闭以避免客户端关闭该安全保护')} />
                     </>

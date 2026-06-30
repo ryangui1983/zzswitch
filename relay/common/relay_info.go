@@ -842,6 +842,28 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		}
 	}
 
+	// 过滤 image_generation 工具，避免上游不支持生图时返回 403
+	if channelOtherSettings.DisableImageGenerationTool {
+		if toolsAny, exists := data["tools"]; exists {
+			if tools, ok := toolsAny.([]interface{}); ok {
+				filtered := make([]interface{}, 0, len(tools))
+				for _, t := range tools {
+					if toolMap, ok := t.(map[string]interface{}); ok {
+						if toolMap["type"] == "image_generation" {
+							continue
+						}
+					}
+					filtered = append(filtered, t)
+				}
+				if len(filtered) == 0 {
+					delete(data, "tools")
+				} else {
+					data["tools"] = filtered
+				}
+			}
+		}
+	}
+
 	// 默认移除 safety_identifier，除非明确允许（保护用户隐私，避免向 OpenAI 报告用户信息）
 	if !channelOtherSettings.AllowSafetyIdentifier {
 		if _, exists := data["safety_identifier"]; exists {
@@ -882,6 +904,7 @@ func hasRemovableDisabledField(jsonData []byte, channelOtherSettings dto.Channel
 		"store",
 		"safety_identifier",
 		"stream_options.include_obfuscation",
+		"tools",
 	)
 
 	return (!channelOtherSettings.AllowServiceTier && values[0].Exists()) ||
@@ -889,7 +912,8 @@ func hasRemovableDisabledField(jsonData []byte, channelOtherSettings dto.Channel
 		(!channelOtherSettings.AllowSpeed && values[2].Exists()) ||
 		(channelOtherSettings.DisableStore && values[3].Exists()) ||
 		(!channelOtherSettings.AllowSafetyIdentifier && values[4].Exists()) ||
-		(!channelOtherSettings.AllowIncludeObfuscation && values[5].Exists())
+		(!channelOtherSettings.AllowIncludeObfuscation && values[5].Exists()) ||
+		(channelOtherSettings.DisableImageGenerationTool && values[6].Exists())
 }
 
 // RemoveGeminiDisabledFields removes disabled fields from Gemini request JSON data

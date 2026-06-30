@@ -107,6 +107,7 @@ export interface ChannelOtherSettings {
   aws_key_type?: 'ak_sk' | 'api_key'
   allow_service_tier?: boolean
   disable_store?: boolean
+  disable_image_generation_tool?: boolean
   allow_safety_identifier?: boolean
   allow_include_obfuscation?: boolean
   allow_inference_geo?: boolean
