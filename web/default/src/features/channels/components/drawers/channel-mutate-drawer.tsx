@@ -3072,31 +3072,6 @@ export function ChannelMutateDrawer({
 
                                 <FormField
                                   control={form.control}
-                                  name='disable_image_generation_tool'
-                                  render={({ field }) => (
-                                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
-                                      <div className='space-y-0.5'>
-                                        <FormLabel className='text-sm'>
-                                          {t('Disable image generation tool')}
-                                        </FormLabel>
-                                        <FormDescription>
-                                          {t(
-                                            'Strip image_generation from tools array before forwarding to upstream, avoids 403 when upstream does not support image generation'
-                                          )}
-                                        </FormDescription>
-                                      </div>
-                                      <FormControl>
-                                        <Switch
-                                          checked={field.value}
-                                          onCheckedChange={field.onChange}
-                                        />
-                                      </FormControl>
-                                    </FormItem>
-                                  )}
-                                />
-
-                                <FormField
-                                  control={form.control}
                                   name='allow_inference_geo'
                                   render={({ field }) => (
                                     <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>

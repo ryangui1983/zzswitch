@@ -31,6 +31,9 @@ export interface QuotaDataItem {
   token_used?: number
   count?: number
   quota?: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  cache_tokens?: number
 }
 
 export interface FlowQuotaDataItem {

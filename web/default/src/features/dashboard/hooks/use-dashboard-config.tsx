@@ -79,6 +79,28 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       getValue: (stat, timeRangeMinutes = 1) =>
         safeDivide(stat?.tpm ?? 0, timeRangeMinutes),
     },
+    {
+      key: 'promptTokens',
+      title: t('Input Tokens'),
+      description: t('Total prompt/input tokens'),
+      icon: Activity,
+      getValue: (stat) => stat?.promptTokens ?? 0,
+    },
+    {
+      key: 'completionTokens',
+      title: t('Output Tokens'),
+      description: t('Total completion/output tokens'),
+      icon: TrendingUp,
+      getValue: (stat) => stat?.completionTokens ?? 0,
+    },
+    {
+      key: 'cacheHitRate',
+      title: t('Cache Hit Rate'),
+      description: t('Cache tokens / total input tokens'),
+      icon: Flame,
+      getValue: (stat) =>
+        safeDivide((stat?.cacheTokens ?? 0) * 100, stat?.promptTokens ?? 0, 1),
+    },
   ]
 }
 

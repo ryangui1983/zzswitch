@@ -344,17 +344,29 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {
+			cacheTokens := 0
+			if ct, ok := params.Other["cache_tokens"]; ok {
+				switch v := ct.(type) {
+				case int:
+					cacheTokens = v
+				case float64:
+					cacheTokens = int(v)
+				}
+			}
 			LogQuotaData(QuotaDataLogParams{
-				UserID:    userId,
-				Username:  username,
-				ModelName: params.ModelName,
-				Quota:     params.Quota,
-				CreatedAt: createdAt,
-				TokenUsed: params.PromptTokens + params.CompletionTokens,
-				UseGroup:  params.Group,
-				TokenID:   params.TokenId,
-				ChannelID: params.ChannelId,
-				NodeName:  common.NodeName,
+				UserID:           userId,
+				Username:         username,
+				ModelName:        params.ModelName,
+				Quota:            params.Quota,
+				CreatedAt:        createdAt,
+				TokenUsed:        params.PromptTokens + params.CompletionTokens,
+				UseGroup:         params.Group,
+				TokenID:          params.TokenId,
+				ChannelID:        params.ChannelId,
+				NodeName:         common.NodeName,
+				PromptTokens:     params.PromptTokens,
+				CompletionTokens: params.CompletionTokens,
+				CacheTokens:      cacheTokens,
 			})
 		})
 	}

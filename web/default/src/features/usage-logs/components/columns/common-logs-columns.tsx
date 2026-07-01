@@ -728,6 +728,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const cacheWriteTokens = hasSplitCache
           ? cacheWrite5m + cacheWrite1h
           : other?.cache_creation_tokens || 0
+        const cacheHitRate =
+          promptTokens > 0 && cacheReadTokens > 0
+            ? Math.round((cacheReadTokens / promptTokens) * 1000) / 10
+            : 0
 
         return (
           <div className='flex flex-col gap-0.5'>
@@ -740,6 +744,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 {cacheReadTokens > 0 && (
                   <span className='text-muted-foreground/60'>
                     {t('Cache')}↓ {cacheReadTokens.toLocaleString()}
+                    {cacheHitRate > 0 && (
+                      <span className='text-green-600 dark:text-green-400 ml-0.5'>
+                        ({cacheHitRate}%)
+                      </span>
+                    )}
                   </span>
                 )}
                 {cacheWriteTokens > 0 && (
