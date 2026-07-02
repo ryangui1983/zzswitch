@@ -16,21 +16,14 @@ type StatusCodeRange struct {
 
 var AutomaticDisableStatusCodeRanges = []StatusCodeRange{{Start: 401, End: 401}}
 
-// Default behavior matches legacy hardcoded retry rules in controller/relay.go shouldRetry:
-// retry for 1xx, 3xx, 4xx(except 400/408), 5xx(except 504/524), and no retry for 2xx.
+// Default: rotate to next channel for all non-2xx errors.
+// Same-channel pool mode retry is controlled separately via SchedulerPoolModeRetryStatusCodes (default: 401,403,429).
 var AutomaticRetryStatusCodeRanges = []StatusCodeRange{
 	{Start: 100, End: 199},
-	{Start: 300, End: 399},
-	{Start: 401, End: 407},
-	{Start: 409, End: 499},
-	{Start: 500, End: 503},
-	{Start: 505, End: 523},
-	{Start: 525, End: 599},
+	{Start: 300, End: 599},
 }
 
-var alwaysSkipRetryStatusCodes = map[int]struct{}{
-	504: {},
-}
+var alwaysSkipRetryStatusCodes = map[int]struct{}{}
 
 var alwaysSkipRetryCodes = map[types.ErrorCode]struct{}{
 	types.ErrorCodeBadResponseBody: {},

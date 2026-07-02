@@ -78,7 +78,7 @@ func (s ChannelSettings) GetUpstreamRateMultiplier() float64 {
 
 func (s ChannelSettings) GetErrorRatioWindowSeconds() int {
 	if s.ErrorRatioWindowSeconds == nil || *s.ErrorRatioWindowSeconds <= 0 {
-		return 60
+		return 30
 	}
 	if *s.ErrorRatioWindowSeconds < 10 {
 		return 10
