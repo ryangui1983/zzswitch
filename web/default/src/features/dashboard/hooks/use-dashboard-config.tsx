@@ -101,7 +101,9 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       getValue: (stat) => {
         const cache = stat?.cacheTokens ?? 0
         const prompt = stat?.promptTokens ?? 0
-        return safeDivide(cache * 100, prompt + cache, 1)
+        // prompt_tokens 已在后端归一化为“总输入 token”（含所有缓存），
+        // 故命中率直接为 cache / prompt。
+        return safeDivide(cache * 100, prompt, 1)
       },
     },
   ]

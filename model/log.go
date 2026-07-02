@@ -344,14 +344,29 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {
-			cacheTokens := 0
-			if ct, ok := params.Other["cache_tokens"]; ok {
-				switch v := ct.(type) {
-				case int:
-					cacheTokens = v
-				case float64:
-					cacheTokens = int(v)
+			otherInt := func(key string) int {
+				if v, ok := params.Other[key]; ok {
+					switch t := v.(type) {
+					case int:
+						return t
+					case float64:
+						return int(t)
+					}
 				}
+				return 0
+			}
+			cacheTokens := otherInt("cache_tokens")
+			cacheCreationTokens := otherInt("cache_creation_tokens")
+			// Anthropic 的 prompt_tokens 不含 cache_read / cache_creation，
+			// OpenAI 的 prompt_tokens 已含 cache_read。归一化为“总输入 token”，
+			// 使两类渠道语义一致，看板命中率可用 cache_read / prompt 计算。
+			isAnthropic := false
+			if params.Other["usage_semantic"] == "anthropic" || params.Other["claude"] == true {
+				isAnthropic = true
+			}
+			normalizedPromptTokens := params.PromptTokens
+			if isAnthropic {
+				normalizedPromptTokens = params.PromptTokens + cacheTokens + cacheCreationTokens
 			}
 			LogQuotaData(QuotaDataLogParams{
 				UserID:           userId,
@@ -364,7 +379,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 				TokenID:          params.TokenId,
 				ChannelID:        params.ChannelId,
 				NodeName:         common.NodeName,
-				PromptTokens:     params.PromptTokens,
+				PromptTokens:     normalizedPromptTokens,
 				CompletionTokens: params.CompletionTokens,
 				CacheTokens:      cacheTokens,
 			})
