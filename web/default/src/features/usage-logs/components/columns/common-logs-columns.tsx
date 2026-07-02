@@ -728,9 +728,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const cacheWriteTokens = hasSplitCache
           ? cacheWrite5m + cacheWrite1h
           : other?.cache_creation_tokens || 0
+        // Anthropic (type 14): prompt_tokens excludes cached tokens → denominator = prompt + cache
+        // OpenAI and others: prompt_tokens already includes cached tokens → denominator = prompt only
+        const isAnthropic = other?.channel_type === 14
         const cacheHitRate =
           cacheReadTokens > 0
-            ? Math.round((cacheReadTokens / (promptTokens + cacheReadTokens)) * 1000) / 10
+            ? isAnthropic
+              ? Math.round((cacheReadTokens / (promptTokens + cacheReadTokens)) * 1000) / 10
+              : Math.round((cacheReadTokens / promptTokens) * 1000) / 10
             : 0
 
         return (
