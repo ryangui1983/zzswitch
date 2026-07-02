@@ -729,8 +729,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           ? cacheWrite5m + cacheWrite1h
           : other?.cache_creation_tokens || 0
         const cacheHitRate =
-          promptTokens > 0 && cacheReadTokens > 0
-            ? Math.round((cacheReadTokens / promptTokens) * 1000) / 10
+          cacheReadTokens > 0
+            ? Math.round((cacheReadTokens / (promptTokens + cacheReadTokens)) * 1000) / 10
             : 0
 
         return (

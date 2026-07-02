@@ -98,8 +98,11 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       title: t('Cache Hit Rate'),
       description: t('Cache tokens / total input tokens'),
       icon: Flame,
-      getValue: (stat) =>
-        safeDivide((stat?.cacheTokens ?? 0) * 100, stat?.promptTokens ?? 0, 1),
+      getValue: (stat) => {
+        const cache = stat?.cacheTokens ?? 0
+        const prompt = stat?.promptTokens ?? 0
+        return safeDivide(cache * 100, prompt + cache, 1)
+      },
     },
   ]
 }
