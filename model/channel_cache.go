@@ -137,6 +137,10 @@ func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, r
 			continue
 		}
 		if channel, ok := channelsIDM[channelId]; ok {
+			s := channel.GetSetting()
+			if s.MaxConcurrentRequests != nil && *s.MaxConcurrentRequests > 0 && common.GetChannelConcurrency(channelId) >= *s.MaxConcurrentRequests {
+				continue // skip saturated channels
+			}
 			uniquePriorities[int(channel.GetPriority())] = true
 		} else {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
@@ -163,6 +167,10 @@ func GetRandomSatisfiedChannelExcluding(group string, model string, retry int, r
 			continue
 		}
 		if channel, ok := channelsIDM[channelId]; ok {
+			s := channel.GetSetting()
+			if s.MaxConcurrentRequests != nil && *s.MaxConcurrentRequests > 0 && common.GetChannelConcurrency(channelId) >= *s.MaxConcurrentRequests {
+				continue // skip saturated channels
+			}
 			if channel.GetPriority() == targetPriority {
 				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)

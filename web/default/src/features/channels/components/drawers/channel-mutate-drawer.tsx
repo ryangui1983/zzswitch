@@ -3530,6 +3530,30 @@ export function ChannelMutateDrawer({
                               </FormItem>
                             )}
                           />
+                          <FormField
+                            control={form.control}
+                            name='max_concurrent_requests'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>{t('Max Concurrent Requests')}</FormLabel>
+                                  <FormDescription>
+                                    {t('Maximum number of concurrent requests for this channel. 0 or empty means no limit.')}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    min={0}
+                                    className='w-24 text-right'
+                                    placeholder={t('No limit')}
+                                    value={field.value ?? ''}
+                                    onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
                         </div>
                       </div>
 

@@ -209,6 +209,7 @@ export const channelFormSchema = z
     error_ratio_status_codes: z.string().optional(),
     probe_block_enabled: z.boolean().optional(),
     probe_block_fake_success: z.boolean().optional(),
+    max_concurrent_requests: z.coerce.number().int().min(0).optional().nullable(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -379,6 +380,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   error_ratio_status_codes: '500-599',
   probe_block_enabled: false,
   probe_block_fake_success: false,
+  max_concurrent_requests: null,
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -430,6 +432,7 @@ export function transformChannelToFormDefaults(
     error_ratio_status_codes: '500-599',
     probe_block_enabled: false,
     probe_block_fake_success: false,
+    max_concurrent_requests: null,
   }
 
   if (channel.setting) {
@@ -474,6 +477,7 @@ export function transformChannelToFormDefaults(
         error_ratio_status_codes: parsed.error_ratio_status_codes || '502,503',
         probe_block_enabled: parsed.probe_block_enabled === true,
         probe_block_fake_success: parsed.probe_block_fake_success === true,
+        max_concurrent_requests: typeof parsed.max_concurrent_requests === 'number' ? parsed.max_concurrent_requests : null,
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -607,6 +611,9 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     error_ratio_status_codes: formData.error_ratio_status_codes || '502,503',
     probe_block_enabled: formData.probe_block_enabled === true,
     probe_block_fake_success: formData.probe_block_fake_success === true,
+    ...(formData.max_concurrent_requests != null && formData.max_concurrent_requests > 0
+      ? { max_concurrent_requests: formData.max_concurrent_requests }
+      : {}),
   }
   return JSON.stringify(settingObj)
 }

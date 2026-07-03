@@ -28,6 +28,7 @@ type ChannelSettings struct {
 	ErrorRatioStatusCodes             string   `json:"error_ratio_status_codes,omitempty"`
 	ProbeBlockEnabled                 bool     `json:"probe_block_enabled,omitempty"`
 	ProbeBlockFakeSuccess             bool     `json:"probe_block_fake_success,omitempty"`
+	MaxConcurrentRequests             *int     `json:"max_concurrent_requests,omitempty"`
 }
 
 func (s ChannelSettings) GetSchedulerPoolModeRetryTimes() int {
