@@ -194,7 +194,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if concurrencyAcquiredChannelId != 0 {
 			common.ReleaseChannelSlot(concurrencyAcquiredChannelId)
-			common.SysLog(fmt.Sprintf("[concurrency] channel %d RELEASED: current=%d", concurrencyAcquiredChannelId, common.GetChannelConcurrency(concurrencyAcquiredChannelId)))
 		}
 	}()
 
@@ -229,7 +228,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 					fmt.Errorf("channel %d is at concurrency limit (%d)", channel.Id, *maxConc),
 					types.ErrorCodeGetChannelFailed, http.StatusTooManyRequests,
 				)
-				common.SysLog(fmt.Sprintf("[concurrency] channel %d SATURATED: current=%d limit=%d", channel.Id, common.GetChannelConcurrency(channel.Id), *maxConc))
 				relayInfo.LastError = saturatedErr
 				retryParam.SelectRetryChannel(saturatedErr, channel)
 				if retryParam.RetryChannel != nil {
@@ -239,7 +237,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				break
 			}
 			concurrencyAcquiredChannelId = channel.Id
-			common.SysLog(fmt.Sprintf("[concurrency] channel %d ACQUIRED: current=%d limit=%d", channel.Id, common.GetChannelConcurrency(channel.Id), *maxConc))
 		}
 
 		attemptStart := time.Now()
@@ -259,14 +256,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		addUsedChannel(c, channel.Id)
-		common.SysLog(fmt.Sprintf("About to enqueue webhook for channel %d, requestId %s", channel.Id, requestId))
 		enqueueOpsWebhook(opsWebhookEvent{
 			Event:     "dispatch",
 			ChannelID: channel.Id,
 			RequestID: requestId,
 			Ts:        time.Now().UnixMilli(),
 		})
-		common.SysLog(fmt.Sprintf("Webhook enqueued for channel %d", channel.Id))
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)

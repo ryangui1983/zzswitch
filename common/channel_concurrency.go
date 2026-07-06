@@ -5,20 +5,15 @@ import (
 	"sync/atomic"
 )
 
-var (
-	channelConcurrencyMu       sync.Mutex
-	channelConcurrencyCounters = make(map[int]*atomic.Int32)
-)
+var channelConcurrencyMap sync.Map // key: int → *atomic.Int32
 
 func getChannelConcurrencyCounter(channelId int) *atomic.Int32 {
-	channelConcurrencyMu.Lock()
-	defer channelConcurrencyMu.Unlock()
-	if c, ok := channelConcurrencyCounters[channelId]; ok {
-		return c
+	if v, ok := channelConcurrencyMap.Load(channelId); ok {
+		return v.(*atomic.Int32)
 	}
-	c := &atomic.Int32{}
-	channelConcurrencyCounters[channelId] = c
-	return c
+	newCounter := &atomic.Int32{}
+	v, _ := channelConcurrencyMap.LoadOrStore(channelId, newCounter)
+	return v.(*atomic.Int32)
 }
 
 // TryAcquireChannelSlot attempts to increment the concurrency counter.
