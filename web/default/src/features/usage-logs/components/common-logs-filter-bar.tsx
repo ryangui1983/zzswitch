@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import type { Table } from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
+import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useIsAdmin } from '@/hooks/use-admin'
+
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -37,6 +37,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useIsAdmin } from '@/hooks/use-admin'
+
+import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
@@ -51,18 +54,28 @@ import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
-type LogResultValue = 'success' | 'error' | 'intermediate'
+type LogTypeValue = (typeof LOG_TYPE_FILTERS)[number]['value']
+const logTypeValueSet = new Set<string>(
+  LOG_TYPE_FILTERS.map((type) => type.value)
+)
 
 type CommonLogDraft = {
   sourceKey: string
   filters: CommonLogFilters
-  logResult: LogResultValue
+  logType: LogTypeValue
 }
 
-function getLogResultValue(value: unknown): LogResultValue {
-  if (value === 'error') return 'error'
-  if (value === 'intermediate') return 'intermediate'
-  return 'success'
+function isLogTypeValue(value: string): value is LogTypeValue {
+  return logTypeValueSet.has(value)
+}
+
+function getLogTypeValue(value: unknown): LogTypeValue {
+  return Array.isArray(value) &&
+    value.length === 1 &&
+    typeof value[0] === 'string' &&
+    isLogTypeValue(value[0])
+    ? value[0]
+    : LOG_TYPE_ALL_VALUE
 }
 
 function buildSearchSourceKey(values: {
@@ -75,7 +88,7 @@ function buildSearchSourceKey(values: {
   username?: unknown
   requestId?: unknown
   upstreamRequestId?: unknown
-  result?: unknown
+  type?: unknown
 }) {
   return [
     values.startTime,
@@ -87,7 +100,7 @@ function buildSearchSourceKey(values: {
     values.username,
     values.requestId,
     values.upstreamRequestId,
-    values.result,
+    Array.isArray(values.type) ? values.type.join(',') : values.type,
   ]
     .map((value) => String(value ?? ''))
     .join('\u001f')
@@ -120,7 +133,7 @@ export function CommonLogsFilterBar<TData>(
       username: searchParams.username,
       requestId: searchParams.requestId,
       upstreamRequestId: searchParams.upstreamRequestId,
-      result: searchParams.result,
+      type: searchParams.type,
     }
     const filters: CommonLogFilters = {
       startTime: searchParams.startTime
@@ -138,7 +151,7 @@ export function CommonLogsFilterBar<TData>(
     return {
       sourceKey: buildSearchSourceKey(sourceValues),
       filters,
-      logResult: getLogResultValue(searchParams.result),
+      logType: getLogTypeValue(searchParams.type),
     }
   }, [
     searchParams.startTime,
@@ -150,13 +163,13 @@ export function CommonLogsFilterBar<TData>(
     searchParams.username,
     searchParams.requestId,
     searchParams.upstreamRequestId,
-    searchParams.result,
+    searchParams.type,
   ])
   const [draft, setDraft] = useState<CommonLogDraft>(() => searchState)
   const activeDraft =
     draft.sourceKey === searchState.sourceKey ? draft : searchState
   const filters = activeDraft.filters
-  const logResult = activeDraft.logResult
+  const logType = activeDraft.logType
 
   const handleChange = useCallback(
     (field: keyof CommonLogFilters, value: Date | string | undefined) => {
@@ -166,7 +179,7 @@ export function CommonLogsFilterBar<TData>(
         return {
           sourceKey: searchState.sourceKey,
           filters: { ...base.filters, [field]: value },
-          logResult: base.logResult,
+          logType: base.logType,
         }
       })
     },
@@ -180,55 +193,26 @@ export function CommonLogsFilterBar<TData>(
       params: { section: 'common' },
       search: {
         ...filterParams,
-        result: logResult,
-        type: undefined,
+        type: [logType],
         page: 1,
       },
     })
     queryClient.invalidateQueries({ queryKey: ['logs'] })
     queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
-  }, [filters, logResult, navigate, queryClient])
-
-  const handleResultChange = useCallback(
-    (result: LogResultValue) => {
-      setDraft((current) => {
-        const base =
-          current.sourceKey === searchState.sourceKey ? current : searchState
-        return {
-          sourceKey: searchState.sourceKey,
-          filters: base.filters,
-          logResult: result,
-        }
-      })
-      const filterParams = buildSearchParams(filters, 'common')
-      navigate({
-        to: '/usage-logs/$section',
-        params: { section: 'common' },
-        search: {
-          ...filterParams,
-          result,
-          type: undefined,
-          page: 1,
-        },
-      })
-      queryClient.invalidateQueries({ queryKey: ['logs'] })
-      queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
-    },
-    [filters, navigate, queryClient, searchState]
-  )
+  }, [filters, logType, navigate, queryClient])
 
   const handleReset = useCallback(() => {
     const { start, end } = getDefaultTimeRange()
     const resetFilters: CommonLogFilters = { startTime: start, endTime: end }
     const resetSearch = {
-      result: 'success' as const,
+      type: [LOG_TYPE_ALL_VALUE],
       startTime: start.getTime(),
       endTime: end.getTime(),
     }
     setDraft({
       sourceKey: buildSearchSourceKey(resetSearch),
       filters: resetFilters,
-      logResult: 'success',
+      logType: LOG_TYPE_ALL_VALUE,
     })
 
     navigate({
@@ -257,9 +241,9 @@ export function CommonLogsFilterBar<TData>(
     !!filters.requestId ||
     !!filters.upstreamRequestId
 
-  const hasResultFilter = logResult !== 'success'
+  const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
   const hasAdditionalFilters =
-    !!filters.model || !!filters.group || hasResultFilter || hasExpandedFilters
+    !!filters.model || !!filters.group || hasTypeFilter || hasExpandedFilters
 
   const expandedFilterCount = [
     filters.token,
@@ -269,7 +253,16 @@ export function CommonLogsFilterBar<TData>(
     filters.upstreamRequestId,
   ].filter(Boolean).length
   const sensitiveType = sensitiveVisible ? 'text' : 'password'
-  const logResultLabel = logResult === 'error' ? t('Failed') : logResult === 'intermediate' ? t('Intermediate Error') : t('Success')
+  const logTypeItems = useMemo(
+    () =>
+      LOG_TYPE_FILTERS.map((type) => ({
+        value: type.value,
+        label: t(type.label),
+      })),
+    [t]
+  )
+  const logTypeLabel =
+    logTypeItems.find((type) => type.value === logType)?.label ?? t('All Types')
 
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
@@ -330,27 +323,37 @@ export function CommonLogsFilterBar<TData>(
       />
     </LogsFilterField>
   )
-  const resultFilter = (
+  const typeFilter = (
     <LogsFilterField>
       <Select
-        items={[
-          { value: 'success', label: t('Success') },
-          { value: 'error', label: t('Failed') },
-          { value: 'intermediate', label: t('Intermediate Error') },
-        ]}
-        value={logResult}
+        items={logTypeItems}
+        value={logType}
         onValueChange={(value) => {
-          handleResultChange(value === 'error' ? 'error' : value === 'intermediate' ? 'intermediate' : 'success')
+          const nextLogType =
+            value !== null && isLogTypeValue(value) ? value : LOG_TYPE_ALL_VALUE
+          setDraft((current) => {
+            const base =
+              current.sourceKey === searchState.sourceKey
+                ? current
+                : searchState
+            return {
+              sourceKey: searchState.sourceKey,
+              filters: base.filters,
+              logType: nextLogType,
+            }
+          })
         }}
       >
         <SelectTrigger>
-          <SelectValue>{logResultLabel}</SelectValue>
+          <SelectValue>{logTypeLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
           <SelectGroup>
-            <SelectItem value='success'>{t('Success')}</SelectItem>
-            <SelectItem value='error'>{t('Failed')}</SelectItem>
-            <SelectItem value='intermediate'>{t('Intermediate Error')}</SelectItem>
+            {LOG_TYPE_FILTERS.map((type) => (
+              <SelectItem key={type.value} value={type.value}>
+                {t(type.label)}
+              </SelectItem>
+            ))}
           </SelectGroup>
         </SelectContent>
       </Select>
@@ -417,7 +420,7 @@ export function CommonLogsFilterBar<TData>(
           {dateRangeFilter}
           {modelFilter}
           {groupFilter}
-          {resultFilter}
+          {typeFilter}
         </>
       }
       advancedFilters={advancedFilters}
@@ -426,12 +429,12 @@ export function CommonLogsFilterBar<TData>(
         <>
           {modelFilter}
           {groupFilter}
-          {resultFilter}
+          {typeFilter}
           {advancedFilters}
         </>
       }
       mobileFilterCount={
-        [filters.model, filters.group, hasResultFilter].filter(Boolean).length +
+        [filters.model, filters.group, hasTypeFilter].filter(Boolean).length +
         expandedFilterCount
       }
       hasAdvancedActiveFilters={hasExpandedFilters}

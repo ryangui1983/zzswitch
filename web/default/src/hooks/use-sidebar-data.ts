@@ -27,7 +27,7 @@ import {
   ListTodo,
   MessageSquare,
   Radio,
-  Monitor,
+  ServerCog,
   Settings,
   Ticket,
   User,
@@ -35,7 +35,9 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { type SidebarData } from '@/components/layout/types'
+import { ROLE } from '@/lib/roles'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -77,11 +79,6 @@ export function useSidebarData(): SidebarData {
             title: t('Dashboard'),
             url: '/dashboard/models',
             icon: LayoutDashboard,
-          },
-          {
-            title: '分组状态',
-            url: '/group-status',
-            icon: Monitor,
           },
           {
             title: t('API Keys'),
@@ -143,9 +140,15 @@ export function useSidebarData(): SidebarData {
             icon: Ticket,
           },
           {
-            title: t('Subscription Management'),
+            title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('System Info'),
+            url: '/system-info',
+            icon: ServerCog,
+            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('System Settings'),
