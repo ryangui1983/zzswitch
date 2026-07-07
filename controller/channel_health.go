@@ -68,7 +68,7 @@ func tryAutoRecoverChannel(channel *model.Channel) {
 	if rootUser == nil {
 		return
 	}
-	result := testChannel(channel, rootUser.Id, "", string(constant.EndpointTypeOpenAI), false)
+	result := testChannel(context.Background(), channel, rootUser.Id, "", string(constant.EndpointTypeOpenAI), false)
 	if result.newAPIError != nil || result.localErr != nil {
 		return
 	}
