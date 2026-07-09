@@ -124,13 +124,25 @@ function renderType(type, t) {
     case 5:
       return (
         <Tag color='red' shape='circle'>
-          {t('错误')}
+          {t('失败')}
         </Tag>
       );
     case 6:
       return (
         <Tag color='teal' shape='circle'>
           {t('退款')}
+        </Tag>
+      );
+    case 7:
+      return (
+        <Tag color='blue' shape='circle'>
+          {t('登录')}
+        </Tag>
+      );
+    case 8:
+      return (
+        <Tag color='amber' shape='circle'>
+          {t('中间失败')}
         </Tag>
       );
     default:
