@@ -35,6 +35,15 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
+	// Normalise max_output_tokens (Responses API) → max_completion_tokens (Chat Completions).
+	// Some clients (e.g. Claude Code) send max_output_tokens to Chat Completions endpoints.
+	if request.MaxOutputTokens != nil {
+		if request.MaxCompletionTokens == nil && request.MaxTokens == nil {
+			request.MaxCompletionTokens = request.MaxOutputTokens
+		}
+		request.MaxOutputTokens = nil
+	}
+
 	if request.WebSearchOptions != nil {
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)
 	}

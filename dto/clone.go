@@ -41,6 +41,7 @@ func (r *GeneralOpenAIRequest) Clone() *GeneralOpenAIRequest {
 	if r.Dimensions != nil          { v := *r.Dimensions; c.Dimensions = &v }
 	if r.ReturnImages != nil        { v := *r.ReturnImages; c.ReturnImages = &v }
 	if r.ReturnRelatedQuestions != nil { v := *r.ReturnRelatedQuestions; c.ReturnRelatedQuestions = &v }
+	if r.MaxOutputTokens != nil        { v := *r.MaxOutputTokens; c.MaxOutputTokens = &v }
 
 	// Pointer-to-struct fields (all flat, one-level dereference suffices)
 	if r.StreamOptions != nil    { sc := *r.StreamOptions; c.StreamOptions = &sc }

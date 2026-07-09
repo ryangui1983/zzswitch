@@ -104,6 +104,10 @@ type GeneralOpenAIRequest struct {
 	ReturnImages           *bool           `json:"return_images,omitempty"`
 	ReturnRelatedQuestions *bool           `json:"return_related_questions,omitempty"`
 	SearchMode             json.RawMessage `json:"search_mode,omitempty"`
+	// max_output_tokens is the Responses API equivalent of max_completion_tokens.
+	// Clients (e.g. Claude Code) sometimes send it to Chat Completions endpoints.
+	// It is normalised to MaxCompletionTokens before forwarding.
+	MaxOutputTokens *uint `json:"max_output_tokens,omitempty"`
 	// Minimax
 	ReasoningSplit json.RawMessage `json:"reasoning_split,omitempty"`
 }
