@@ -57,6 +57,7 @@ import {
 } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
+import { toIntlLocale } from '@/i18n/languages'
 import { updateChannel } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
@@ -298,7 +299,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const withSuffix = (value: string) =>
     tokenSuffix && value !== '-' ? `${value}${tokenSuffix}` : value
 
-  const locale = i18n.resolvedLanguage || i18n.language
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   // Precise values are kept for the tooltip; long values are shown compactly inline.
   const usedFull = withSuffix(formatQuotaValue(usedQuota))
   const costFull = withSuffix(formatQuotaValue(upstreamCost))
@@ -453,7 +454,7 @@ function AutoRecoveryCell({ channel }: { channel: Channel }) {
 export function useChannelsColumns(): ColumnDef<Channel>[] {
   const { t, i18n } = useTranslation()
   const { sensitiveVisible } = useChannels()
-  const locale = i18n.resolvedLanguage || i18n.language
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   // The column definitions only depend on the translation function, the active
   // locale, and sensitive-data visibility. Memoizing keeps the array (and every
   // cell renderer reference) stable across unrelated re-renders, so react-table
