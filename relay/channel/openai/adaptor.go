@@ -603,7 +603,85 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if info != nil && request.Reasoning != nil && request.Reasoning.Effort != "" {
 		info.ReasoningEffort = request.Reasoning.Effort
 	}
+	// max_output_tokens is only supported by OpenAI's own Responses API;
+	// many third-party OpenAI-compatible upstreams reject it.
+	// Pre-billing already enforces quota limits, so stripping it here is safe.
+	request.MaxOutputTokens = nil
+	// OpenAI's built-in tool-call items (e.g. tool_search_call) require
+	// "arguments" to be a JSON object, but some clients (Codex CLI) serialise
+	// them as a JSON string, causing a 400 "expected an object" error.
+	// Convert only for the whitelisted item types below; regular function_call
+	// arguments must stay strings per the Responses API spec.
+	if len(request.Input) > 0 {
+		if fixed, ok := objectifyBuiltinToolArguments(request.Input); ok {
+			request.Input = fixed
+		}
+	}
 	return request, nil
+}
+
+// objectArgumentItemTypes lists Responses API input item types whose
+// "arguments" field must be a JSON object rather than a string. Add new
+// built-in tool item types here if the upstream reports a type mismatch.
+var objectArgumentItemTypes = map[string]bool{
+	"tool_search_call": true,
+	"web_search_call":  true,
+	"file_search_call": true,
+}
+
+// objectifyBuiltinToolArguments walks the input array and, for whitelisted
+// built-in tool-call items whose "arguments" is a JSON-encoded string,
+// re-parses it into an object. Returns (newInput, true) only when something
+// changed; otherwise (nil, false) so the caller keeps the original bytes.
+func objectifyBuiltinToolArguments(input json.RawMessage) (json.RawMessage, bool) {
+	var items []json.RawMessage
+	if err := json.Unmarshal(input, &items); err != nil {
+		return nil, false // not an array, leave untouched
+	}
+	changed := false
+	for i, item := range items {
+		var obj map[string]json.RawMessage
+		if err := json.Unmarshal(item, &obj); err != nil {
+			continue
+		}
+		typeRaw, ok := obj["type"]
+		if !ok {
+			continue
+		}
+		var itemType string
+		if err := json.Unmarshal(typeRaw, &itemType); err != nil {
+			continue
+		}
+		if !objectArgumentItemTypes[itemType] {
+			continue
+		}
+		argsRaw, ok := obj["arguments"]
+		if !ok || len(argsRaw) == 0 || argsRaw[0] != '"' {
+			continue // absent or already a non-string (object/array/etc.)
+		}
+		var argsStr string
+		if err := json.Unmarshal(argsRaw, &argsStr); err != nil {
+			continue
+		}
+		if !json.Valid([]byte(argsStr)) {
+			continue // string is not valid JSON, leave as-is
+		}
+		obj["arguments"] = json.RawMessage(argsStr)
+		newItem, err := json.Marshal(obj)
+		if err != nil {
+			continue
+		}
+		items[i] = newItem
+		changed = true
+	}
+	if !changed {
+		return nil, false
+	}
+	newInput, err := json.Marshal(items)
+	if err != nil {
+		return nil, false
+	}
+	return newInput, true
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
