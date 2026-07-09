@@ -471,7 +471,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             onCheckedChange={(value) =>
               table.toggleAllPageRowsSelected(!!value)
             }
-            aria-label='Select all'
+            aria-label={t('Select all')}
           />
         ),
         cell: ({ row }) => {
