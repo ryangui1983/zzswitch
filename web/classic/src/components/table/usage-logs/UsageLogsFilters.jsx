@@ -150,7 +150,9 @@ const LogsFilters = ({
               <Form.Select.Option value='5'>{t('失败')}</Form.Select.Option>
               <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
               <Form.Select.Option value='7'>{t('登录')}</Form.Select.Option>
-              <Form.Select.Option value='8'>{t('中间失败')}</Form.Select.Option>
+              {isAdminUser && (
+                <Form.Select.Option value='8'>{t('中间失败')}</Form.Select.Option>
+              )}
             </Form.Select>
           </div>
 
