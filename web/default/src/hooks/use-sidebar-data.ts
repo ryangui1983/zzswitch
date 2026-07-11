@@ -26,6 +26,7 @@ import {
   LayoutDashboard,
   ListTodo,
   MessageSquare,
+  Monitor,
   Radio,
   ServerCog,
   Settings,
@@ -79,6 +80,11 @@ export function useSidebarData(): SidebarData {
             title: t('Dashboard'),
             url: '/dashboard/models',
             icon: LayoutDashboard,
+          },
+          {
+            title: '分组状态',
+            url: '/group-status',
+            icon: Monitor,
           },
           {
             title: t('API Keys'),
