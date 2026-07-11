@@ -195,12 +195,13 @@ export function buildApiParams(config: {
     return undefined
   }
 
-  // Build base params from search params
-  const resultType = searchParams.result === 'error' ? 5 : searchParams.result === 'intermediate' ? 8 : 2
+  // Build base params from search params — read user-selected log type from URL
+  const rawType = Array.isArray(searchParams.type) ? searchParams.type[0] : searchParams.type
+  const resultType = rawType && String(rawType) !== '0' ? Number(rawType) : undefined
   const params: GetLogsParams = {
     p: page,
     page_size: pageSize,
-    type: resultType,
+    ...(resultType !== undefined ? { type: resultType } : {}),
     ...(searchParams.model ? { model_name: String(searchParams.model) } : {}),
     ...(searchParams.token ? { token_name: String(searchParams.token) } : {}),
     ...(searchParams.group ? { group: String(searchParams.group) } : {}),

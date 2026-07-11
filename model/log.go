@@ -543,6 +543,9 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	} else {
 		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}
+	// Intermediate error logs are admin-only; never expose them through the
+	// per-user endpoint, even if a client explicitly requests type=8.
+	tx = tx.Where("logs.type <> ?", LogTypeIntermediateError)
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err

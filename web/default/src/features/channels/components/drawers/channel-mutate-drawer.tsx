@@ -255,6 +255,7 @@ const ADVANCED_SETTINGS_SECTION_IDS = {
   internalNotes: 'channel-section-advanced-internal-notes',
   overrideRules: 'channel-section-advanced-override-rules',
   extraSettings: 'channel-section-advanced-extra-settings',
+  channelHealthAutomation: 'channel-section-advanced-health-automation',
   fieldPassthrough: 'channel-section-advanced-field-passthrough',
   upstreamModelDetection: 'channel-section-advanced-upstream-model-detection',
 } as const
@@ -1054,6 +1055,17 @@ export function ChannelMutateDrawer({
       id: ADVANCED_SETTINGS_SECTION_IDS.extraSettings,
       title: t('Channel Extra Settings'),
       configured: extraSettingsConfigured,
+    },
+    {
+      id: ADVANCED_SETTINGS_SECTION_IDS.channelHealthAutomation,
+      title: t('Channel Health Automation'),
+      configured: Boolean(
+        form.watch('scheduler_pool_mode_enabled') ||
+        (form.watch('upstream_rate_multiplier') ?? 1) !== 1 ||
+        form.watch('health_check_enabled') ||
+        form.watch('health_check_auto_enable_enabled') ||
+        form.watch('error_ratio_disable_enabled')
+      ),
     },
   ]
   if (currentType === 1 || currentType === 14 || currentType === 57) {
@@ -4219,6 +4231,243 @@ export function ChannelMutateDrawer({
                               )}
                             />
                           </fieldset>
+                        </div>
+
+                        <div
+                          id={ADVANCED_SETTINGS_SECTION_IDS.channelHealthAutomation}
+                          className={sideDrawerSectionClassName(
+                            'flex flex-col gap-4',
+                            false
+                          )}
+                        >
+                          <SubHeading
+                            title={t('Channel Health Automation')}
+                            icon={<RefreshCw className='h-3.5 w-3.5' />}
+                          />
+                          <div className='grid gap-4 md:grid-cols-2'>
+                            <FormField
+                              control={form.control}
+                              name='upstream_rate_multiplier'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Upstream Rate Multiplier')}</FormLabel>
+                                  <FormControl>
+                                    <Input type='number' min='0' step='0.0001' {...field} />
+                                  </FormControl>
+                                  <FormDescription>
+                                    {t('Display-only upstream multiplier. It does not affect user billing.')}
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='scheduler_pool_mode_retry_status_codes'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Same Channel Retry Status Codes')}</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder='401,403,429' {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='scheduler_pool_mode_retry_times'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Same Channel Retry Times')}</FormLabel>
+                                  <FormControl>
+                                    <Input type='number' min='0' max='10' {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='error_ratio_status_codes'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Error Ratio Status Codes')}</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder='502,503' {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='error_ratio_window_seconds'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Error Window Seconds')}</FormLabel>
+                                  <FormControl>
+                                    <Input type='number' min='10' max='3600' {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='error_ratio_threshold'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Error Ratio Threshold')}</FormLabel>
+                                  <FormControl>
+                                    <Input type='number' min='0' max='1' step='0.0001' {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='error_ratio_min_requests'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Minimum Requests')}</FormLabel>
+                                  <FormControl>
+                                    <Input type='number' min='1' {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          <div className='divide-border space-y-0 divide-y border-y'>
+                            <FormField
+                              control={form.control}
+                              name='disable_image_generation_tool'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between px-4 py-3'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>{t('Disable image generation tool')}</FormLabel>
+                                    <FormDescription>
+                                      {t('Strip image_generation from tools array before forwarding to upstream, avoids 403 when upstream does not support image generation')}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='scheduler_pool_mode_enabled'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between px-4 py-3'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>{t('Pool Mode Same Channel Retry')}</FormLabel>
+                                    <FormDescription>
+                                      {t('Retry the same channel before switching priority.')}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='health_check_auto_enable_enabled'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between px-4 py-3'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>{t('Auto Recovery')}</FormLabel>
+                                    <FormDescription>
+                                      {t('Test auto-disabled channel every 60 seconds and re-enable it after success')}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='error_ratio_disable_enabled'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between px-4 py-3'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>{t('Error Ratio Auto Disable')}</FormLabel>
+                                    <FormDescription>
+                                      {t('Disable channel when the short-window error ratio reaches the threshold.')}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='probe_block_enabled'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between px-4 py-3'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>{t('Block Probe Requests')}</FormLabel>
+                                    <FormDescription>
+                                      {t('Intercept non-streaming requests with max_tokens ≤ 5 (used as availability probes).')}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='probe_block_fake_success'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between px-4 py-3'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>{t('Fake Probe Success')}</FormLabel>
+                                    <FormDescription>
+                                      {t('Return a fake success response for blocked probes instead of an error.')}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name='max_concurrent_requests'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between px-4 py-3'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>{t('Max Concurrent Requests')}</FormLabel>
+                                    <FormDescription>
+                                      {t('Maximum number of concurrent requests for this channel. 0 or empty means no limit.')}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Input
+                                      type='number'
+                                      min={0}
+                                      className='w-24 text-right'
+                                      placeholder={t('No limit')}
+                                      value={field.value ?? ''}
+                                      onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
                         </div>
 
                         {(currentType === 1 ||
