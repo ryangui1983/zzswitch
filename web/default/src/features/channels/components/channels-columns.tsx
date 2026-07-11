@@ -347,13 +347,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
   // Regular channel row: show used and actual cost (upstream estimate)
   return (
     <TooltipProvider>
-      <div
-        className={
-          layout === 'card'
-            ? 'flex flex-wrap items-center gap-1'
-            : 'flex items-center gap-1'
-        }
-      >
+      <div className='-ml-1.5 flex items-center gap-1'>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -1032,7 +1026,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       // Balance column (Used/Remaining)
       {
         accessorKey: 'balance',
-        header: t('Used / Remaining'),
+        header: t('Used / Cost'),
         meta: {
           cardRole: 'primary',
           cardOrder: 30,
