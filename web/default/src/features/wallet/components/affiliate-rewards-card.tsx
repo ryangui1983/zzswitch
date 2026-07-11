@@ -58,6 +58,7 @@ export function AffiliateRewardsCard({
 
   const hasRewards = (user?.aff_quota ?? 0) > 0
   const stats = [
+    [t('Commission Earned'), formatQuota(user?.aff_commission_earned ?? 0)],
     [t('Pending'), formatQuota(user?.aff_quota ?? 0)],
     [t('Total Earned'), formatQuota(user?.aff_history_quota ?? 0)],
     [t('Invites'), String(user?.aff_count ?? 0)],

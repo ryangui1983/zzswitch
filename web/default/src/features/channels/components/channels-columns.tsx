@@ -58,7 +58,6 @@ import {
 } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
-import { toIntlLocale } from '@/i18n/languages'
 import { updateChannel } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
