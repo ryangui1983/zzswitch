@@ -23,11 +23,34 @@ func CloseResponseBodyGracefully(httpResponse *http.Response) {
 	}
 }
 
+// sensitiveUpstreamHeaders lists headers that could reveal the upstream
+// provider's identity (CDN, cloud vendor, origin host). Stripping them
+// prevents clients from discovering and directly connecting to the upstream.
+var sensitiveUpstreamHeaders = map[string]bool{
+	"server":            true,
+	"cf-ray":            true,
+	"cf-cache-status":   true,
+	"cf-request-id":     true,
+	"cf-connecting-ip":  true,
+	"via":               true,
+	"x-powered-by":      true,
+	"x-served-by":       true,
+	"x-cache":           true,
+	"x-cache-hits":      true,
+	"x-timer":           true,
+	"x-amz-request-id":  true,
+	"x-amzn-requestid":  true,
+	"x-amzn-trace-id":   true,
+	"x-azure-ref":       true,
+	"x-ms-request-id":   true,
+	"x-request-id":      true,
+	"x-envoy-upstream-service-time": true,
+}
+
 // ShouldCopyUpstreamHeader checks whether a given upstream response header
 // should be copied to the client response. It returns false for Content-Length
-// (managed separately) and X-Oneapi-Request-Id (to preserve the local instance
-// ID). When the upstream header is X-Oneapi-Request-Id, the value is captured
-// into the Gin context for later logging.
+// (managed separately), X-Oneapi-Request-Id (to preserve the local instance
+// ID), and headers that could reveal upstream provider identity.
 func ShouldCopyUpstreamHeader(c *gin.Context, k string, v []string) bool {
 	if strings.EqualFold(k, "Content-Length") {
 		return false
@@ -36,6 +59,9 @@ func ShouldCopyUpstreamHeader(c *gin.Context, k string, v []string) bool {
 		if c != nil && len(v) > 0 {
 			c.Set(common.UpstreamRequestIdKey, v[0])
 		}
+		return false
+	}
+	if sensitiveUpstreamHeaders[strings.ToLower(k)] {
 		return false
 	}
 	return true

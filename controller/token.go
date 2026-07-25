@@ -227,6 +227,11 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	go model.RecordOperationAuditLog(cleanToken.UserId,
+		fmt.Sprintf("created token '%s' with group '%s'", cleanToken.Name, cleanToken.Group),
+		c.ClientIP(), "token.create",
+		map[string]interface{}{"name": cleanToken.Name, "group": cleanToken.Group},
+		nil, nil)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -286,6 +291,7 @@ func UpdateToken(c *gin.Context) {
 			return
 		}
 	}
+	oldGroup := cleanToken.Group
 	if statusOnly != "" {
 		cleanToken.Status = token.Status
 	} else {
@@ -304,6 +310,13 @@ func UpdateToken(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if statusOnly == "" && oldGroup != cleanToken.Group {
+		go model.RecordOperationAuditLog(userId,
+			fmt.Sprintf("token '%s' group changed: '%s' -> '%s'", cleanToken.Name, oldGroup, cleanToken.Group),
+			c.ClientIP(), "token.update_group",
+			map[string]interface{}{"name": cleanToken.Name, "token_id": cleanToken.Id, "old_group": oldGroup, "new_group": cleanToken.Group},
+			nil, nil)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
