@@ -235,32 +235,6 @@ function TagPriorityCell({ channel }: { channel: TagRow }) {
   )
 }
 
-    return (
-      <>
-        <NumericSpinnerInput
-          value={priority ?? 0}
-          onChange={(value) => {
-            setPendingValue(value)
-            setConfirmOpen(true)
-          }}
-          min={-999}
-        />
-        <ConfirmDialog
-          open={confirmOpen}
-          onOpenChange={setConfirmOpen}
-          title={t('Confirm Batch Update')}
-          desc={t('This will update the priority to {{value}} for all {{count}} channel(s) with tag "{{tag}}". Continue?', { value: pendingValue, count: channelCount, tag })}
-          confirmText={t('Update')}
-          handleConfirm={() => {
-            if (pendingValue !== null) {
-              handleUpdateTagField(tag, 'priority', pendingValue, queryClient)
-            }
-            setConfirmOpen(false)
-          }}
-        />
-      </>
-    )
-  }
 function ChannelFieldCell({
   channelId,
   value,
@@ -481,13 +455,12 @@ function BalanceCell({ channel }: { channel: Channel }) {
           <TooltipTrigger
             render={
               <StatusBadge
-                label={remainingBadgeLabel}
-                variant={remainingBadgeVariant}
+                label={sensitiveVisible ? costDisplay : SENSITIVE_MASK}
+                variant='neutral'
                 size='sm'
                 copyable={false}
                 showDot={false}
-                className='cursor-pointer'
-                onClick={handleClickUpdate}
+                className='cursor-help'
               />
             }
           />
