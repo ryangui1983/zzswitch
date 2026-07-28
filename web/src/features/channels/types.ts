@@ -98,6 +98,8 @@ export interface ChannelSettings {
   error_ratio_threshold?: number
   error_ratio_min_requests?: number
   error_ratio_status_codes?: string
+  http_protocol?: 'auto' | 'http1' | string
+  http2_connection_shards?: number
 }
 
 export interface ChannelOtherSettings {

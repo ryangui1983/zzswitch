@@ -5,12 +5,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	relayDto "github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -74,7 +74,7 @@ func (p *RetryParam) SelectRetryChannel(err *types.NewAPIError, channel *model.C
 	p.ResetRetryNextTry()
 }
 
-func shouldRetrySameChannel(err *types.NewAPIError, settings dto.ChannelSettings) bool {
+func shouldRetrySameChannel(err *types.NewAPIError, settings relayDto.ChannelSettings) bool {
 	if err == nil || !settings.SchedulerPoolModeEnabled {
 		return false
 	}
