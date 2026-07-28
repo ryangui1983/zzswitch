@@ -39,6 +39,7 @@ import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
+import { Route as AuthenticatedGroupStatusIndexRouteImport } from './routes/_authenticated/group-status/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
@@ -203,12 +204,6 @@ const AuthenticatedChatChatIdRoute = AuthenticatedChatChatIdRouteImport.update({
   path: '/chat/$chatId',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedGroupStatusIndexRoute =
-  AuthenticatedGroupStatusIndexRouteImport.update({
-    id: '/group-status/',
-    path: '/group-status/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedDashboardIndexRoute =
   AuthenticatedDashboardIndexRouteImport.update({
     id: '/dashboard/',
@@ -225,6 +220,12 @@ const AuthenticatedErrorsErrorRoute =
   AuthenticatedErrorsErrorRouteImport.update({
     id: '/errors/$error',
     path: '/errors/$error',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedGroupStatusIndexRoute =
+  AuthenticatedGroupStatusIndexRouteImport.update({
+    id: '/group-status/',
+    path: '/group-status/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedKeysIndexRoute = AuthenticatedKeysIndexRouteImport.update({
@@ -949,97 +950,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authUserResetRouteImport
       parentRoute: typeof authRouteRoute
     }
-    '/_authenticated/wallet/': {
-      id: '/_authenticated/wallet/'
-      path: '/wallet'
-      fullPath: '/wallet/'
-      preLoaderRoute: typeof AuthenticatedWalletIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/users/': {
-      id: '/_authenticated/users/'
-      path: '/users'
-      fullPath: '/users/'
-      preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/usage-logs/': {
-      id: '/_authenticated/usage-logs/'
-      path: '/usage-logs'
-      fullPath: '/usage-logs/'
-      preLoaderRoute: typeof AuthenticatedUsageLogsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/system-settings/': {
-      id: '/_authenticated/system-settings/'
-      path: '/'
-      fullPath: '/system-settings/'
-      preLoaderRoute: typeof AuthenticatedSystemSettingsIndexRouteImport
-      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
-    }
-    '/_authenticated/system-info/': {
-      id: '/_authenticated/system-info/'
-      path: '/system-info'
-      fullPath: '/system-info/'
-      preLoaderRoute: typeof AuthenticatedSystemInfoIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/subscriptions/': {
-      id: '/_authenticated/subscriptions/'
-      path: '/subscriptions'
-      fullPath: '/subscriptions/'
-      preLoaderRoute: typeof AuthenticatedSubscriptionsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/redemption-codes/': {
-      id: '/_authenticated/redemption-codes/'
-      path: '/redemption-codes'
-      fullPath: '/redemption-codes/'
-      preLoaderRoute: typeof AuthenticatedRedemptionCodesIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/profile/': {
-      id: '/_authenticated/profile/'
-      path: '/profile'
-      fullPath: '/profile/'
-      preLoaderRoute: typeof AuthenticatedProfileIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/playground/': {
-      id: '/_authenticated/playground/'
-      path: '/playground'
-      fullPath: '/playground/'
-      preLoaderRoute: typeof AuthenticatedPlaygroundIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/models/': {
-      id: '/_authenticated/models/'
-      path: '/models'
-      fullPath: '/models/'
-      preLoaderRoute: typeof AuthenticatedModelsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/keys/': {
-      id: '/_authenticated/keys/'
-      path: '/keys'
-      fullPath: '/keys/'
-      preLoaderRoute: typeof AuthenticatedKeysIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/group-status/': {
-      id: '/_authenticated/group-status/'
-      path: '/group-status'
-      fullPath: '/group-status/'
-      preLoaderRoute: typeof AuthenticatedGroupStatusIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/dashboard/': {
-      id: '/_authenticated/dashboard/'
-      path: '/dashboard'
-      fullPath: '/dashboard/'
-      preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/channels/': {
       id: '/_authenticated/channels/'
       path: '/channels'
@@ -1073,6 +983,13 @@ declare module '@tanstack/react-router' {
       path: '/errors/$error'
       fullPath: '/errors/$error'
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/group-status/': {
+      id: '/_authenticated/group-status/'
+      path: '/group-status'
+      fullPath: '/group-status/'
+      preLoaderRoute: typeof AuthenticatedGroupStatusIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/keys/': {
