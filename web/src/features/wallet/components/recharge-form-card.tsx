@@ -530,18 +530,21 @@ export function RechargeFormCard({
             </Button>
           </div>
           {topupLink && (
-            <p className='text-muted-foreground text-xs'>
-              {t('Need a redemption code?')}{' '}
-              <a
-                href={topupLink}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='inline-flex items-center gap-1 underline-offset-4 hover:underline'
-              >
-                {t('Get one here')}
-                <ExternalLink className='h-3 w-3' />
-              </a>
-            </p>
+            <a
+              href={topupLink}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='group flex items-center justify-between rounded-lg border-2 border-orange-400 bg-orange-50 px-4 py-3 text-sm font-semibold text-orange-700 shadow-sm transition-all hover:bg-orange-100 hover:shadow-md dark:border-orange-500 dark:bg-orange-950/60 dark:text-orange-300 dark:hover:bg-orange-900/60'
+            >
+              <span className='flex items-center gap-2'>
+                <span className='inline-block animate-bounce text-base'>⚠️</span>
+                <span>
+                  {t('Online recharge is temporarily unavailable. Please purchase a redemption code.')}{' '}
+                  <span className='underline underline-offset-2'>{t('Get one here')}</span>
+                </span>
+              </span>
+              <ExternalLink className='h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5' />
+            </a>
           )}
         </div>
       ) : (
