@@ -335,6 +335,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if operation_setting.IsImageGenerationGroupPermissionError(newAPIError.StatusCode, newAPIError.Error()) {
 			break
 		}
+		if operation_setting.IsAlwaysSkipRetryStatusCode(newAPIError.StatusCode) {
+			break
+		}
 		retryParam.SelectRetryChannel(newAPIError, channel)
 		if retryParam.RetryChannel != nil {
 			continue
@@ -477,6 +480,9 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError) bool {
 		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
+		return false
+	}
+	if operation_setting.IsAlwaysSkipRetryStatusCode(openaiErr.StatusCode) {
 		return false
 	}
 	if types.IsChannelError(openaiErr) {

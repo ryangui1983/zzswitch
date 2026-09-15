@@ -23,7 +23,12 @@ var AutomaticRetryStatusCodeRanges = []StatusCodeRange{
 	{Start: 300, End: 599},
 }
 
-var alwaysSkipRetryStatusCodes = map[int]struct{}{}
+// 504/524 are timeout cuts (gateway / Cloudflare). Return them as-is;
+// do not retry the same channel or rotate to the next one.
+var alwaysSkipRetryStatusCodes = map[int]struct{}{
+	504: {},
+	524: {},
+}
 
 var alwaysSkipRetryCodes = map[types.ErrorCode]struct{}{
 	types.ErrorCodeBadResponseBody: {},

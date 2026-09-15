@@ -54,8 +54,10 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		// 把 xAI 的usage转换为 OpenAI 的usage
 		if xAIResp.Usage != nil {
 			containStreamUsage = true
-			usage.PromptTokens = xAIResp.Usage.PromptTokens
-			usage.TotalTokens = xAIResp.Usage.TotalTokens
+			// 整体接管上游 usage，保留 prompt_tokens_details.cached_tokens 等
+			// 明细字段；此前逐字段搬运会丢弃缓存命中数据，导致计费 cache_tokens=0
+			*usage = *xAIResp.Usage
+			// xAI 的 completion_tokens 语义为 total - prompt
 			usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
 		}
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,6 +58,19 @@ func TestRetryParamSelectRetryChannelSkipsImagePermission403(t *testing.T) {
 	param.SelectRetryChannel(upstreamErr, channel)
 	require.Nil(t, param.RetryChannel)
 	require.True(t, param.ExhaustedChannelIds[channel.Id])
+}
+
+func TestRetryParamSelectRetryChannelSkipsCloudflare524(t *testing.T) {
+	param := &RetryParam{}
+	channel := &model.Channel{
+		Id:      15,
+		Setting: common.GetPointer(`{"scheduler_pool_mode_enabled":true,"scheduler_pool_mode_retry_times":2,"scheduler_pool_mode_retry_status_codes":"500-599"}`),
+	}
+	upstreamErr := types.NewOpenAIError(errors.New("cloudflare timeout"), types.ErrorCodeBadResponseStatusCode, 524)
+
+	param.SelectRetryChannel(upstreamErr, channel)
+	require.Nil(t, param.RetryChannel)
+	require.Empty(t, param.ExhaustedChannelIds)
 }
 
 func TestRetryParamSelectRetryChannelIgnoresDisabledPoolMode(t *testing.T) {
