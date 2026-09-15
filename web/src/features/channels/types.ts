@@ -81,10 +81,12 @@ export type Channel = z.infer<typeof channelSchema>
 // ============================================================================
 
 export interface ChannelSettings {
+  task_plugin_key?: string
   force_format?: boolean
   thinking_to_content?: boolean
   proxy?: string
   pass_through_body_enabled?: boolean
+  responses_websocket_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
   scheduler_pool_mode_enabled?: boolean
@@ -115,6 +117,7 @@ export interface ChannelOtherSettings {
   allow_inference_geo?: boolean
   allow_speed?: boolean
   claude_beta_query?: boolean
+  ollama_openai_chat?: boolean
   disable_task_polling_sleep?: boolean
   upstream_model_update_check_enabled?: boolean
   upstream_model_update_auto_sync_enabled?: boolean
@@ -134,6 +137,7 @@ export interface AdvancedCustomRoute {
   converter?: AdvancedCustomConverter
   models?: string[]
   auth?: AdvancedCustomRouteAuth
+  pass_through_body_enabled?: boolean
 }
 
 export interface AdvancedCustomRouteAuth {
@@ -210,6 +214,7 @@ export interface ChannelBalanceResponse {
   message?: string
   balance?: number
   currency?: string
+  raw_response?: string
 }
 
 export interface FetchModelsResponse {
