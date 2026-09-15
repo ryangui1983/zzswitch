@@ -251,31 +251,9 @@ const MODEL_MAPPING_PREVIEW_FALLBACK: Array<{
   target: string
 }> = [{ source: 'client-model', target: 'upstream-model' }]
 
-const ADVANCED_SETTINGS_EXPANDED_KEY = 'channel-advanced-settings-expanded'
-const CHANNEL_EDITOR_SECTION_IDS = {
-  identity: 'channel-section-identity',
-  credentials: 'channel-section-credentials',
-  models: 'channel-section-models',
-  advanced: 'channel-section-advanced',
-} as const
-const CHANNEL_EDITOR_MAIN_SECTION_IDS = [
-  CHANNEL_EDITOR_SECTION_IDS.identity,
-  CHANNEL_EDITOR_SECTION_IDS.credentials,
-  CHANNEL_EDITOR_SECTION_IDS.models,
-  CHANNEL_EDITOR_SECTION_IDS.advanced,
-]
 const ADVANCED_SETTINGS_SECTION_IDS = {
-  routingStrategy: 'channel-section-advanced-routing-strategy',
-  internalNotes: 'channel-section-advanced-internal-notes',
-  overrideRules: 'channel-section-advanced-override-rules',
-  extraSettings: 'channel-section-advanced-extra-settings',
   channelHealthAutomation: 'channel-section-advanced-health-automation',
-  fieldPassthrough: 'channel-section-advanced-field-passthrough',
-  upstreamModelDetection: 'channel-section-advanced-upstream-model-detection',
 } as const
-const ADVANCED_SETTINGS_CHILD_SECTION_IDS: string[] = Object.values(
-  ADVANCED_SETTINGS_SECTION_IDS
-)
 const ADVANCED_CUSTOM_ROUTE_TYPE_PREVIEW_LIMIT = 3
 const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8
 const SENSITIVE_FORM_FIELDS = [
@@ -316,60 +294,6 @@ const SENSITIVE_FORM_FIELDS = [
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
 ] satisfies (keyof ChannelFormValues)[]
-
-function readAdvancedSettingsPreference(): boolean {
-  if (typeof window === 'undefined') return false
-  return window.localStorage.getItem(ADVANCED_SETTINGS_EXPANDED_KEY) === 'true'
-}
-
-function hasConfiguredOverrideValue(value: unknown): boolean {
-  if (typeof value !== 'string') return false
-
-  const trimmed = value.trim()
-  if (!trimmed || trimmed === 'null') return false
-
-  try {
-    const parsed = JSON.parse(trimmed)
-    if (parsed === null) return false
-    if (Array.isArray(parsed)) return parsed.length > 0
-    if (typeof parsed === 'object') return Object.keys(parsed).length > 0
-  } catch {
-    return true
-  }
-
-  return true
-}
-
-function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
-  return Boolean(
-    hasConfiguredOverrideValue(values.param_override) ||
-    hasConfiguredOverrideValue(values.header_override) ||
-    values.advanced_custom?.trim() ||
-    hasConfiguredOverrideValue(values.status_code_mapping) ||
-    values.tag?.trim() ||
-    values.remark?.trim() ||
-    values.priority ||
-    values.weight ||
-    values.proxy?.trim() ||
-    values.system_prompt?.trim() ||
-    values.force_format ||
-    values.thinking_to_content ||
-    values.pass_through_body_enabled ||
-    values.system_prompt_override ||
-    values.scheduler_pool_mode_enabled ||
-    values.upstream_rate_multiplier !== 1 ||
-    values.health_check_enabled ||
-    values.health_check_auto_enable_enabled ||
-    values.error_ratio_disable_enabled ||
-    (values.http_protocol && values.http_protocol !== 'auto') ||
-    (values.http2_connection_shards != null &&
-      values.http2_connection_shards > 1) ||
-    values.claude_beta_query ||
-    values.upstream_model_update_check_enabled ||
-    values.upstream_model_update_auto_sync_enabled ||
-    values.upstream_model_update_ignored_models?.trim()
-  )
-}
 
 function parseSettingsRecord(
   settings: string | undefined
@@ -892,195 +816,6 @@ export function ChannelMutateDrawer({
     formErrors,
     isEditing
   )
-  const credentialsHaveErrors = Boolean(
-    formErrors.key ||
-    formErrors.base_url ||
-    formErrors.other ||
-    formErrors.multi_key_mode ||
-    formErrors.multi_key_type ||
-    formErrors.key_mode ||
-    formErrors.vertex_key_type ||
-    formErrors.aws_key_type ||
-    formErrors.azure_responses_version
-  )
-  const modelsHaveErrors = Boolean(
-    formErrors.models || formErrors.group || formErrors.model_mapping
-  )
-  const advancedHaveErrors =
-    hasAdvancedSettingsErrors(formErrors) || Boolean(formErrors.advanced_custom)
-  const providerRequiresBaseUrl = [3, 8, 36, 45].includes(currentType)
-  const providerRequiresOther = [3, 18, 21, 39, 41, 49].includes(currentType)
-  const identityComplete = Boolean(currentName?.trim() && currentType > 0)
-  const credentialsComplete = Boolean(
-    (isEditing || currentKey?.trim()) &&
-    (!providerRequiresBaseUrl || currentBaseUrl?.trim()) &&
-    (!providerRequiresOther || currentOther?.trim())
-  )
-  const modelsComplete = Boolean(
-    currentModelsArray.length > 0 && currentGroups?.length
-  )
-  const requiredCompletedCount = [
-    identityComplete,
-    credentialsComplete,
-    modelsComplete,
-  ].filter(Boolean).length
-  const currentStatusLabel =
-    CHANNEL_STATUS_LABELS[
-      currentStatus as keyof typeof CHANNEL_STATUS_LABELS
-    ] || 'Unknown'
-  const progressLabel = `${requiredCompletedCount}/3`
-  const identityStatus = getCompletionStatus(
-    identityHasErrors,
-    identityComplete
-  )
-  const credentialsStatus = getCompletionStatus(
-    credentialsHaveErrors,
-    credentialsComplete
-  )
-  const modelsStatus = getCompletionStatus(modelsHaveErrors, modelsComplete)
-  const advancedStatus: ChannelEditorSectionStatus = advancedHaveErrors
-    ? 'error'
-    : 'idle'
-  const advancedSummary = advancedHaveErrors ? t('Error') : undefined
-  const routingStrategyConfigured = Boolean(
-    currentPriority ||
-    currentWeight ||
-    currentTestModel?.trim() ||
-    (currentAutoBan ?? 1) !== 1
-  )
-  const internalNotesConfigured = Boolean(
-    currentTag?.trim() || currentRemark?.trim()
-  )
-  const overrideRulesConfigured = Boolean(
-    hasConfiguredOverrideValue(currentStatusCodeMapping) ||
-    hasConfiguredOverrideValue(currentParamOverride) ||
-    hasConfiguredOverrideValue(currentHeaderOverride)
-  )
-  const extraSettingsConfigured = Boolean(
-    currentForceFormat ||
-    currentThinkingToContent ||
-    currentPassThroughBodyEnabled ||
-    currentDisableTaskPollingSleep ||
-    currentProxy?.trim() ||
-    currentSystemPrompt?.trim() ||
-    currentSystemPromptOverride ||
-    (currentHttpProtocol && currentHttpProtocol !== 'auto') ||
-    (currentHttp2ConnectionShards != null && currentHttp2ConnectionShards > 1)
-  )
-  let fieldPassthroughConfigured = false
-  if (currentType === 1 || currentType === 57) {
-    fieldPassthroughConfigured = Boolean(
-      currentAllowServiceTier ||
-      currentDisableStore ||
-      currentAllowSafetyIdentifier ||
-      currentAllowIncludeObfuscation ||
-      currentAllowInferenceGeo
-    )
-  } else if (currentType === 14) {
-    fieldPassthroughConfigured = Boolean(
-      currentAllowServiceTier ||
-      currentAllowInferenceGeo ||
-      currentAllowSpeed ||
-      currentClaudeBetaQuery
-    )
-  }
-  const upstreamModelDetectionConfigured = Boolean(
-    upstreamModelUpdateCheckEnabled ||
-    currentUpstreamModelUpdateAutoSyncEnabled ||
-    currentUpstreamModelUpdateIgnoredModels?.trim()
-  )
-  const advancedConfigured = Boolean(
-    routingStrategyConfigured ||
-    internalNotesConfigured ||
-    overrideRulesConfigured ||
-    extraSettingsConfigured ||
-    fieldPassthroughConfigured ||
-    upstreamModelDetectionConfigured
-  )
-  const advancedNavChildren: ChannelEditorNavChildItem[] = [
-    {
-      id: ADVANCED_SETTINGS_SECTION_IDS.routingStrategy,
-      title: t('Routing Strategy'),
-      configured: routingStrategyConfigured,
-    },
-    {
-      id: ADVANCED_SETTINGS_SECTION_IDS.internalNotes,
-      title: t('Internal Notes'),
-      configured: internalNotesConfigured,
-    },
-    {
-      id: ADVANCED_SETTINGS_SECTION_IDS.overrideRules,
-      title: t('Override Rules'),
-      configured: overrideRulesConfigured,
-    },
-    {
-      id: ADVANCED_SETTINGS_SECTION_IDS.extraSettings,
-      title: t('Channel Extra Settings'),
-      configured: extraSettingsConfigured,
-    },
-    {
-      id: ADVANCED_SETTINGS_SECTION_IDS.channelHealthAutomation,
-      title: t('Channel Health Automation'),
-      configured: Boolean(
-        form.watch('scheduler_pool_mode_enabled') ||
-        (form.watch('upstream_rate_multiplier') ?? 1) !== 1 ||
-        form.watch('health_check_enabled') ||
-        form.watch('health_check_auto_enable_enabled') ||
-        form.watch('error_ratio_disable_enabled')
-      ),
-    },
-  ]
-  if (currentType === 1 || currentType === 14 || currentType === 57) {
-    advancedNavChildren.push({
-      id: ADVANCED_SETTINGS_SECTION_IDS.fieldPassthrough,
-      title: t('Field passthrough controls'),
-      configured: fieldPassthroughConfigured,
-    })
-  }
-  if (MODEL_FETCHABLE_TYPES.has(currentType)) {
-    advancedNavChildren.push({
-      id: ADVANCED_SETTINGS_SECTION_IDS.upstreamModelDetection,
-      title: t('Upstream Model Detection Settings'),
-      configured: upstreamModelDetectionConfigured,
-    })
-  }
-  const editorNavItems: ChannelEditorNavItem[] = [
-    {
-      id: CHANNEL_EDITOR_SECTION_IDS.identity,
-      title: t('Basic Information'),
-      description: getSectionStatusLabel(identityStatus, t),
-      statusLabel: getSectionStatusLabel(identityStatus, t),
-      status: identityStatus,
-      icon: <Server className='h-4 w-4' aria-hidden='true' />,
-    },
-    {
-      id: CHANNEL_EDITOR_SECTION_IDS.credentials,
-      title: t('Credentials'),
-      description: getSectionStatusLabel(credentialsStatus, t),
-      statusLabel: getSectionStatusLabel(credentialsStatus, t),
-      status: credentialsStatus,
-      icon: <KeyRound className='h-4 w-4' aria-hidden='true' />,
-    },
-    {
-      id: CHANNEL_EDITOR_SECTION_IDS.models,
-      title: t('Models & Groups'),
-      description: getSectionStatusLabel(modelsStatus, t),
-      statusLabel: getSectionStatusLabel(modelsStatus, t),
-      status: modelsStatus,
-      icon: <Boxes className='h-4 w-4' aria-hidden='true' />,
-    },
-    {
-      id: CHANNEL_EDITOR_SECTION_IDS.advanced,
-      title: t('Advanced Settings'),
-      description: advancedSummary,
-      statusLabel: advancedSummary ?? t('Advanced Settings'),
-      status: advancedStatus,
-      icon: <Settings className='h-4 w-4' aria-hidden='true' />,
-      configured: advancedConfigured,
-      children: advancedNavChildren,
-    },
-  ]
-
   // Extract redirect models from model_mapping (target values)
   const redirectModelList = useMemo(
     () => extractRedirectModels(currentModelMapping || ''),
@@ -4488,12 +4223,12 @@ export function ChannelMutateDrawer({
                 {httpProtocolFields}
                 {httpShardsFields}
                 <div
-                          id={ADVANCED_SETTINGS_SECTION_IDS.channelHealthAutomation}
-                          className={sideDrawerSectionClassName(
-                            'flex flex-col gap-4',
-                            false
-                          )}
-                        >
+                  id={ADVANCED_SETTINGS_SECTION_IDS.channelHealthAutomation}
+                  className={sideDrawerSectionClassName(
+                    'flex flex-col gap-4',
+                    false
+                  )}
+                >
                           <SubHeading
                             title={t('Channel Health Automation')}
                             icon={<RefreshCw className='h-3.5 w-3.5' />}
@@ -4722,9 +4457,7 @@ export function ChannelMutateDrawer({
                               )}
                             />
                           </div>
-                        </div>
-
-                
+                </div>
               </fieldset>
             </div>
             {upstreamModelDetectionFields}
