@@ -157,7 +157,7 @@ func RecordLog(userId int, logType int, content string) {
 		Type:      logType,
 		Content:   content,
 	}
-	err := LOG_DB.Create(log).Error
+	err := createLog(log)
 	if err != nil {
 		common.SysLog("failed to record log: " + err.Error())
 	}
@@ -200,7 +200,7 @@ func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo *
 		}
 		log.Other = string(data)
 	}
-	if err := LOG_DB.Create(log).Error; err != nil {
+	if err := createLog(log); err != nil {
 		common.SysLog("failed to record log: " + err.Error())
 	}
 }
@@ -269,7 +269,7 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 		Ip:        callerIp,
 		Other:     other.JSONString(),
 	}
-	err := LOG_DB.Create(log).Error
+	err := createLog(log)
 	if err != nil {
 		common.SysLog("failed to record topup log: " + err.Error())
 	}
@@ -320,7 +320,7 @@ func RecordErrorLogForUsername(c *gin.Context, logType int, userId int, username
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
-	err := LOG_DB.Create(log).Error
+	err := createLog(log)
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
@@ -384,7 +384,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
-	err := LOG_DB.Create(log).Error
+	err := createLog(log)
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
@@ -474,7 +474,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		Group:     params.Group,
 		Other:     params.Other.JSONString(),
 	}
-	err := LOG_DB.Create(log).Error
+	err := createLog(log)
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())
 	}
