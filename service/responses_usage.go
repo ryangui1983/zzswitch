@@ -88,6 +88,7 @@ func (a *ResponsesUsageAccumulator) Finish() *dto.Usage {
 	if a.usage.BillingUsage != nil {
 		a.usage.BillingUsage = dto.CloneBillingUsageWithEstimatedCompletion(a.usage.BillingUsage, a.usage.CompletionTokens)
 	}
+	InflateUpstreamUsage(a.usage)
 	return a.usage
 }
 

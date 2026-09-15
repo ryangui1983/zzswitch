@@ -247,6 +247,10 @@ type Usage struct {
 
 	// OpenRouter Params
 	Cost any `json:"cost,omitempty"`
+
+	// TokensInflated is an in-process flag so 10% upstream usage markup
+	// is applied once even if both response post-processing and settlement call it.
+	TokensInflated bool `json:"-"`
 }
 
 type OpenAIVideoResponse struct {

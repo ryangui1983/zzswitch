@@ -44,6 +44,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	// compute usage
 	usage := &dto.Usage{}
 	service.ApplyResponsesUsage(usage, responsesResponse.Usage)
+	service.InflateUpstreamUsage(usage)
 	// Count actual tool invocations from Output (not tool declarations).
 	for _, output := range responsesResponse.Output {
 		switch output.Type {

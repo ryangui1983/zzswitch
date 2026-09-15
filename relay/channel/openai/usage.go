@@ -5,11 +5,12 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
 )
 
-func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {
+func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) bool {
 	if info == nil || usage == nil {
-		return
+		return false
 	}
 
 	switch info.ChannelType {
@@ -48,6 +49,8 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 			}
 		}
 	}
+
+	return service.InflateUpstreamUsage(usage)
 }
 
 func extractCachedTokensFromBody(body []byte) (int, bool) {
