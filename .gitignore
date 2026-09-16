@@ -16,6 +16,8 @@ web/node_modules
 .env
 one-api
 new-api
+new-api-linux
+new-api-linux.gz
 /__debug_bin*
 .DS_Store
 tiktoken_cache
