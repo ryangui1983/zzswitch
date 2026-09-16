@@ -183,6 +183,8 @@ func UsageFromChatUsage(src *dto.Usage) *dto.Usage {
 	}
 	usage.ClaudeCacheCreation5mTokens = src.ClaudeCacheCreation5mTokens
 	usage.ClaudeCacheCreation1hTokens = src.ClaudeCacheCreation1hTokens
+	usage.TokensInflated = src.TokensInflated
+	usage.MarkupChannelId = src.MarkupChannelId
 	return usage
 }
 

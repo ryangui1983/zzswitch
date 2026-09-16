@@ -253,6 +253,16 @@ type Usage struct {
 	TokensInflated bool `json:"-"`
 	// MarkupChannelId is the relay channel used to decide cache-hit boost.
 	MarkupChannelId int `json:"-"`
+	// MarkupHasWeights means cache/completion ratios below were taken from
+	// the request's PriceData so boost compensation matches settlement.
+	MarkupHasWeights         bool    `json:"-"`
+	MarkupCacheRatio         float64 `json:"-"`
+	MarkupCompletionRatio    float64 `json:"-"`
+	MarkupCacheCreationRatio float64 `json:"-"`
+	// MarkupExprString/Hash are the frozen tiered billing expression so
+	// cache-hit boost compensation uses the same prices as settlement.
+	MarkupExprString string `json:"-"`
+	MarkupExprHash   string `json:"-"`
 }
 
 type OpenAIVideoResponse struct {

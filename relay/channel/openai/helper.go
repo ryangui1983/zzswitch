@@ -43,11 +43,7 @@ func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	}
 
 	if streamResponse.Usage != nil {
-		cid := 0
-		if info != nil {
-			cid = info.GetChannelID()
-		}
-		streamResponse.Usage = service.InflatedUsageCopyForChannel(streamResponse.Usage, cid)
+		streamResponse.Usage = service.InflatedUsageCopyFromInfo(streamResponse.Usage, info)
 		info.EnsureClaudeConvertInfo().Usage = streamResponse.Usage
 	}
 	result, err := service.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
@@ -71,11 +67,7 @@ func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 		return err
 	}
 	if streamResponse.Usage != nil {
-		cid := 0
-		if info != nil {
-			cid = info.GetChannelID()
-		}
-		streamResponse.Usage = service.InflatedUsageCopyForChannel(streamResponse.Usage, cid)
+		streamResponse.Usage = service.InflatedUsageCopyFromInfo(streamResponse.Usage, info)
 	}
 
 	state, err := chatToGeminiStreamState(info, &streamResponse)

@@ -116,11 +116,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			}
 		}
 		if claudeResponse.Type == "message_start" || claudeResponse.Type == "message_delta" {
-			cid := 0
-			if info != nil {
-				cid = info.GetChannelID()
-			}
-			if inf := service.InflatedUsageCopyForChannel(claudeInfo.Usage, cid); inf != nil {
+			if inf := service.InflatedUsageCopyFromInfo(claudeInfo.Usage, info); inf != nil {
 				prefix := "usage"
 				if claudeResponse.Type == "message_start" {
 					prefix = "message.usage"
@@ -149,11 +145,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		if response == nil {
 			return nil
 		}
-		cid := 0
-		if info != nil {
-			cid = info.GetChannelID()
-		}
-		if inf := service.InflatedUsageCopyForChannel(claudeInfo.Usage, cid); inf != nil && service.ValidUsage(inf) {
+		if inf := service.InflatedUsageCopyFromInfo(claudeInfo.Usage, info); inf != nil && service.ValidUsage(inf) {
 			mapped := buildOpenAIStyleUsageFromClaudeUsage(inf)
 			response.Usage = &mapped
 		}
@@ -275,11 +267,7 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 		claudeInfo.Usage.UsageSemantic = "anthropic"
 	}
 	relayconvert.FinalizeClaudeStreamBillingUsage(claudeInfo)
-	cid := 0
-	if info != nil {
-		cid = info.GetChannelID()
-	}
-	service.InflateUpstreamUsageForChannel(claudeInfo.Usage, cid)
+	service.InflateUpstreamUsageFromInfo(claudeInfo.Usage, info)
 
 	if info.RelayFormat == types.RelayFormatClaude {
 		//
@@ -359,11 +347,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
-		cid := 0
-		if info != nil {
-			cid = info.GetChannelID()
-		}
-		service.InflateUpstreamUsageForChannel(claudeInfo.Usage, cid)
+		service.InflateUpstreamUsageFromInfo(claudeInfo.Usage, info)
 		service.ApplyInflatedCountsToClaudeUsage(claudeResponse.Usage, claudeInfo.Usage)
 	}
 	var responseData []byte

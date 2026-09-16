@@ -19,7 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func overlayInflatedChatUsage(data string, channelId int) string {
+func overlayInflatedChatUsage(data string, info *relaycommon.RelayInfo) string {
 	var streamResponse dto.ChatCompletionsStreamResponse
 	if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
 		return data
@@ -27,9 +27,10 @@ func overlayInflatedChatUsage(data string, channelId int) string {
 	if streamResponse.Usage == nil || !service.ValidUsage(streamResponse.Usage) {
 		return data
 	}
-	inflated := service.InflatedUsageCopyForChannel(streamResponse.Usage, channelId)
+	inflated := service.InflatedUsageCopyFromInfo(streamResponse.Usage, info)
 	if inflated.PromptTokens == streamResponse.Usage.PromptTokens &&
-		inflated.CompletionTokens == streamResponse.Usage.CompletionTokens {
+		inflated.CompletionTokens == streamResponse.Usage.CompletionTokens &&
+		inflated.PromptTokensDetails.CachedTokens == streamResponse.Usage.PromptTokensDetails.CachedTokens {
 		return data
 	}
 	return string(service.OverlayChatUsageJSON(common.StringToByteSlice(data), inflated))
@@ -41,11 +42,7 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	}
 
 	if !forceFormat && !thinkToContent {
-		cid := 0
-		if info != nil {
-			cid = info.GetChannelID()
-		}
-		if inflated := overlayInflatedChatUsage(data, cid); inflated != data {
+		if inflated := overlayInflatedChatUsage(data, info); inflated != data {
 			return helper.StringData(c, inflated)
 		}
 		return helper.StringData(c, data)
@@ -57,11 +54,7 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	}
 
 	if lastStreamResponse.Usage != nil && service.ValidUsage(lastStreamResponse.Usage) {
-		cid := 0
-		if info != nil {
-			cid = info.GetChannelID()
-		}
-		lastStreamResponse.Usage = service.InflatedUsageCopyForChannel(lastStreamResponse.Usage, cid)
+		lastStreamResponse.Usage = service.InflatedUsageCopyFromInfo(lastStreamResponse.Usage, info)
 	}
 
 	if !thinkToContent {

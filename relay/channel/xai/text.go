@@ -64,7 +64,7 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		openaiResponse := streamResponseXAI2OpenAI(xAIResp, usage)
 		_ = openai.ProcessStreamResponse(*openaiResponse, &responseTextBuilder, &toolCount)
 		if openaiResponse != nil && openaiResponse.Usage != nil {
-			openaiResponse.Usage = service.InflatedUsageCopyForChannel(usage, info.GetChannelID())
+			openaiResponse.Usage = service.InflatedUsageCopyFromInfo(usage, info)
 		}
 		if err := helper.ObjectData(c, openaiResponse); err != nil {
 			common.SysLog(err.Error())
@@ -97,7 +97,7 @@ func xAIHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response
 	if xaiResponse.Usage != nil {
 		xaiResponse.Usage.CompletionTokens = xaiResponse.Usage.TotalTokens - xaiResponse.Usage.PromptTokens
 		xaiResponse.Usage.CompletionTokenDetails.TextTokens = xaiResponse.Usage.CompletionTokens - xaiResponse.Usage.CompletionTokenDetails.ReasoningTokens
-		service.InflateUpstreamUsageForChannel(xaiResponse.Usage, info.GetChannelID())
+		service.InflateUpstreamUsageFromInfo(xaiResponse.Usage, info)
 	}
 
 	// new body

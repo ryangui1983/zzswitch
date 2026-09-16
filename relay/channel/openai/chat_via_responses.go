@@ -85,11 +85,7 @@ func convertResponsesResponseForClient(c *gin.Context, info *relaycommon.RelayIn
 		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
 	if usage != nil {
-		cid := 0
-		if info != nil {
-			cid = info.GetChannelID()
-		}
-		service.InflateUpstreamUsageForChannel(usage, cid)
+		service.InflateUpstreamUsageFromInfo(usage, info)
 		response.Usage = relayconvert.UsageFromChatUsage(usage)
 	}
 
@@ -101,11 +97,7 @@ func convertResponsesResponseForClient(c *gin.Context, info *relaycommon.RelayIn
 		if result.Usage != nil && result.Usage.TotalTokens != 0 {
 			usage = result.Usage
 		}
-		cid := 0
-		if info != nil {
-			cid = info.GetChannelID()
-		}
-		service.InflateUpstreamUsageForChannel(usage, cid)
+		service.InflateUpstreamUsageFromInfo(usage, info)
 	}
 	return result.Value, usage, nil
 }
@@ -240,11 +232,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				return true
 			}
 			if value.Usage != nil {
-				cid := 0
-				if info != nil {
-					cid = info.GetChannelID()
-				}
-				value.Usage = service.InflatedUsageCopyForChannel(value.Usage, cid)
+				value.Usage = service.InflatedUsageCopyFromInfo(value.Usage, info)
 			}
 			if err := helper.ObjectData(c, &value); err != nil {
 				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -256,11 +244,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				return true
 			}
 			if value.Usage != nil {
-				cid := 0
-				if info != nil {
-					cid = info.GetChannelID()
-				}
-				value.Usage = service.InflatedUsageCopyForChannel(value.Usage, cid)
+				value.Usage = service.InflatedUsageCopyFromInfo(value.Usage, info)
 			}
 			if err := helper.ObjectData(c, value); err != nil {
 				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -353,11 +337,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		usage = service.ResponseText2Usage(c, state.UsageText(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
 	if usage != nil {
-		cid := 0
-		if info != nil {
-			cid = info.GetChannelID()
-		}
-		service.InflateUpstreamUsageForChannel(usage, cid)
+		service.InflateUpstreamUsageFromInfo(usage, info)
 		state.SetUsage(usage)
 	}
 
