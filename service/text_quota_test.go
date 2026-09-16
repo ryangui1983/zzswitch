@@ -32,6 +32,11 @@ import (
 // The configured DSNs must point at isolated test databases. Each dialect runs
 // the real reservation, settlement and log paths with the same billing cases.
 func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {
+	quotaSetting := operation_setting.GetQuotaSetting()
+	origBoost := quotaSetting.CacheHitBoostProbability
+	quotaSetting.CacheHitBoostProbability = 0
+	t.Cleanup(func() { quotaSetting.CacheHitBoostProbability = origBoost })
+
 	for _, dialect := range []struct {
 		name   common.DatabaseType
 		env    string

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,10 +81,145 @@ func TestOverlayUsageJSON(t *testing.T) {
 	require.Contains(t, string(image), `"input_tokens":3`)
 }
 
-func TestInflateRealtimeUsage(t *testing.T) {
-	u := &dto.RealtimeUsage{InputTokens: 2000, OutputTokens: 200, TotalTokens: 2200}
-	require.True(t, InflateRealtimeUsage(u))
-	require.Equal(t, 2200, u.InputTokens)
-	require.Equal(t, 220, u.OutputTokens)
-	require.Equal(t, 2420, u.TotalTokens)
+func TestInflateCacheWriteAndHitBoost(t *testing.T) {
+	setting := operation_setting.GetQuotaSetting()
+	origProb := setting.CacheHitBoostProbability
+	origIds := setting.CacheHitBoostChannelIds
+	t.Cleanup(func() {
+		setting.CacheHitBoostProbability = origProb
+		setting.CacheHitBoostChannelIds = origIds
+	})
+	setting.CacheHitBoostChannelIds = "1"
+
+	t.Run("inflates cache write when input is marked up", func(t *testing.T) {
+		setting.CacheHitBoostProbability = 0
+		usage := &dto.Usage{
+			PromptTokens:     2000,
+			CompletionTokens: 50,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens:     200,
+				CacheWriteTokens: 100,
+			},
+		}
+		require.True(t, InflateUpstreamUsage(usage))
+		require.Equal(t, 2200, usage.PromptTokens)
+		require.Equal(t, 110, usage.PromptTokensDetails.CacheWriteTokens)
+		require.Equal(t, 200, usage.PromptTokensDetails.CachedTokens)
+	})
+
+	t.Run("boosts hit rate to 90 percent when probability is 1", func(t *testing.T) {
+		setting.CacheHitBoostProbability = 1
+		usage := &dto.Usage{
+			PromptTokens:     10000,
+			CompletionTokens: 50,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens: 5000,
+			},
+		}
+		require.True(t, InflateUpstreamUsageForChannel(usage, 1))
+		require.Equal(t, 11000, usage.PromptTokens)
+		require.Equal(t, 9900, usage.PromptTokensDetails.CachedTokens)
+	})
+
+	t.Run("does not boost when probability is 0", func(t *testing.T) {
+		setting.CacheHitBoostProbability = 0
+		usage := &dto.Usage{
+			PromptTokens: 10000,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens: 5000,
+			},
+		}
+		require.True(t, InflateUpstreamUsage(usage))
+		require.Equal(t, 11000, usage.PromptTokens)
+		require.Equal(t, 5000, usage.PromptTokensDetails.CachedTokens)
+	})
+
+	t.Run("does not boost when hit rate already at least 90 percent", func(t *testing.T) {
+		setting.CacheHitBoostProbability = 1
+		usage := &dto.Usage{
+			PromptTokens: 10000,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens: 10000,
+			},
+		}
+		require.True(t, InflateUpstreamUsage(usage))
+		require.Equal(t, 11000, usage.PromptTokens)
+		require.Equal(t, 10000, usage.PromptTokensDetails.CachedTokens)
+	})
+
+	t.Run("does not invent cache when there is no cache read", func(t *testing.T) {
+		setting.CacheHitBoostProbability = 1
+		usage := &dto.Usage{PromptTokens: 10000, CompletionTokens: 50}
+		require.True(t, InflateUpstreamUsage(usage))
+		require.Equal(t, 0, usage.PromptTokensDetails.CachedTokens)
+	})
+
+	t.Run("anthropic boost keeps total input unchanged when allowlisted", func(t *testing.T) {
+		setting.CacheHitBoostProbability = 1
+		usage := &dto.Usage{
+			PromptTokens:     2000,
+			CompletionTokens: 50,
+			UsageSemantic:    "anthropic",
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens:         2000,
+				CachedCreationTokens: 100,
+			},
+		}
+		require.True(t, InflateUpstreamUsageForChannel(usage, 1))
+		write := usage.PromptTokensDetails.CacheCreationTokensTotal()
+		require.Equal(t, 110, write)
+		total := usage.PromptTokens + usage.PromptTokensDetails.CachedTokens + write
+		require.Equal(t, 4310, total)
+		require.Equal(t, 3879, usage.PromptTokensDetails.CachedTokens)
+		require.Equal(t, 321, usage.PromptTokens)
+	})
+
+	t.Run("does not boost when channel is not allowlisted", func(t *testing.T) {
+		setting.CacheHitBoostProbability = 1
+		usage := &dto.Usage{
+			PromptTokens: 10000,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens: 5000,
+			},
+		}
+		require.True(t, InflateUpstreamUsageForChannel(usage, 99))
+		require.Equal(t, 11000, usage.PromptTokens)
+		require.Equal(t, 5000, usage.PromptTokensDetails.CachedTokens)
+	})
+
+	t.Run("copy and original agree on boost decision", func(t *testing.T) {
+		setting.CacheHitBoostProbability = 0.5
+		raw := &dto.Usage{
+			PromptTokens:     10000,
+			CompletionTokens: 200,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens: 4000,
+			},
+		}
+		cp := InflatedUsageCopyForChannel(raw, 1)
+		InflateUpstreamUsageForChannel(raw, 1)
+		require.Equal(t, raw.PromptTokensDetails.CachedTokens, cp.PromptTokensDetails.CachedTokens)
+		require.Equal(t, raw.PromptTokens, cp.PromptTokens)
+	})
+
+	t.Run("uses configured markup ratio", func(t *testing.T) {
+		setting.CacheHitBoostProbability = 0
+		origRatio := setting.TokenMarkupRatio
+		setting.TokenMarkupRatio = 0.2
+		t.Cleanup(func() { setting.TokenMarkupRatio = origRatio })
+		usage := &dto.Usage{PromptTokens: 2000, CompletionTokens: 200}
+		require.True(t, InflateUpstreamUsage(usage))
+		require.Equal(t, 2400, usage.PromptTokens)
+		require.Equal(t, 240, usage.CompletionTokens)
+	})
+
+	t.Run("uses configured input threshold", func(t *testing.T) {
+		setting.CacheHitBoostProbability = 0
+		origIn := setting.TokenMarkupInputThreshold
+		setting.TokenMarkupInputThreshold = 5000
+		t.Cleanup(func() { setting.TokenMarkupInputThreshold = origIn })
+		usage := &dto.Usage{PromptTokens: 2000, CompletionTokens: 50}
+		require.False(t, InflateUpstreamUsage(usage))
+		require.Equal(t, 2000, usage.PromptTokens)
+	})
 }

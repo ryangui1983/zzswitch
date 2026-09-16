@@ -48,7 +48,11 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 					usage.PromptTokens = simpleResponse.Usage.InputTokens
 					usage.CompletionTokens = simpleResponse.OutputTokens
 					usage.TotalTokens = simpleResponse.TotalTokens
-					if inf := service.InflatedUsageCopy(usage); inf != nil {
+					cid := 0
+					if info != nil {
+						cid = info.GetChannelID()
+					}
+					if inf := service.InflatedUsageCopyForChannel(usage, cid); inf != nil {
 						*usage = *inf
 						data = string(service.OverlayChatUsageJSON([]byte(data), usage))
 					}

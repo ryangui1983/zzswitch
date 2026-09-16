@@ -290,6 +290,12 @@ export type BillingSettings = {
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
+  'quota_setting.token_markup_ratio': number
+  'quota_setting.token_markup_input_threshold': number
+  'quota_setting.token_markup_output_threshold': number
+  'quota_setting.cache_hit_boost_probability': number
+  'quota_setting.cache_hit_boost_target': number
+  'quota_setting.cache_hit_boost_channel_ids': string
   QuotaPerUnit: number
   USDExchangeRate: number
   'general_setting.quota_display_type': string

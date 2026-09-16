@@ -399,9 +399,13 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) {
 	originUsage := usage
 	billingUsage := effectiveBillingUsage(usage)
-	InflateUpstreamUsage(billingUsage)
+	cid := 0
+	if relayInfo != nil {
+		cid = relayInfo.GetChannelID()
+	}
+	InflateUpstreamUsageForChannel(billingUsage, cid)
 	if originUsage != nil && originUsage != billingUsage {
-		InflateUpstreamUsage(originUsage)
+		InflateUpstreamUsageForChannel(originUsage, cid)
 	}
 	if usage == nil {
 		extraContent = append(extraContent, "上游无计费信息")
@@ -461,16 +465,16 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	if !summary.hasBillableUsage() {
 		extraContent = append(extraContent, "上游没有返回计费信息，无法扣费（可能是上游超时）")
-		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
+		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.GetChannelID(), relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
-		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
+		model.UpdateChannelUsedQuota(relayInfo.GetChannelID(), summary.Quota)
 		if summary.GroupRatio > 0 {
 			channelRate := 1.0
 			if relayInfo.ChannelMeta != nil {
 				channelRate = relayInfo.ChannelMeta.ChannelSetting.GetUpstreamRateMultiplier()
 			}
-			model.UpdateChannelUpstreamCost(relayInfo.ChannelId, float64(summary.Quota)/summary.GroupRatio*channelRate)
+			model.UpdateChannelUpstreamCost(relayInfo.GetChannelID(), float64(summary.Quota)/summary.GroupRatio*channelRate)
 		}
 		model.GiveAffCommission(relayInfo.UserId, summary.Quota)
 	}
@@ -552,7 +556,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	attachQuotaSaturation(ctx, relayInfo, other)
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
-		ChannelId:        relayInfo.ChannelId,
+		ChannelId:        relayInfo.GetChannelID(),
 		PromptTokens:     summary.PromptTokens,
 		CompletionTokens: summary.CompletionTokens,
 		ModelName:        logModel,

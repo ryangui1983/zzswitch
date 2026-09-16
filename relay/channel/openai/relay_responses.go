@@ -41,7 +41,11 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	// compute usage
 	usage := &dto.Usage{}
 	service.ApplyResponsesUsage(usage, responsesResponse.Usage)
-	if service.InflateUpstreamUsage(usage) {
+	cid := 0
+	if info != nil {
+		cid = info.GetChannelID()
+	}
+	if service.InflateUpstreamUsageForChannel(usage, cid) {
 		responseBody = service.OverlayResponsesUsageJSON(responseBody, usage, "usage")
 	}
 
@@ -100,7 +104,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		if streamResponse.Response != nil && streamResponse.Response.Usage != nil {
 			tmp := &dto.Usage{}
 			service.ApplyResponsesUsage(tmp, streamResponse.Response.Usage)
-			if inf := service.InflatedUsageCopy(tmp); inf != nil && (inf.PromptTokens != tmp.PromptTokens || inf.CompletionTokens != tmp.CompletionTokens) {
+			cid := 0
+			if info != nil {
+				cid = info.GetChannelID()
+			}
+			if inf := service.InflatedUsageCopyForChannel(tmp, cid); inf != nil && (inf.PromptTokens != tmp.PromptTokens || inf.CompletionTokens != tmp.CompletionTokens) {
 				data = string(service.OverlayResponsesUsageJSON(common.StringToByteSlice(data), inf, "response.usage"))
 			}
 		}

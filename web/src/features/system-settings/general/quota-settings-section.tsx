@@ -62,6 +62,12 @@ const quotaSchema = z.object({
   }),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
+    token_markup_ratio: z.coerce.number().min(0).max(1),
+    token_markup_input_threshold: z.coerce.number().min(0),
+    token_markup_output_threshold: z.coerce.number().min(0),
+    cache_hit_boost_probability: z.coerce.number().min(0).max(1),
+    cache_hit_boost_target: z.coerce.number().min(0).max(1),
+    cache_hit_boost_channel_ids: z.string(),
   }),
 })
 
@@ -287,6 +293,171 @@ export function QuotaSettingsSection({
                       />
                     </FormControl>
                   </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <FormField
+              control={form.control}
+              name='quota_setting.token_markup_ratio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Token Markup Ratio')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='0.01'
+                      min='0'
+                      max='1'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Markup applied to input, output, and cache-write tokens when they exceed the thresholds (0.1 = 10%). 0 disables markup.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='quota_setting.token_markup_input_threshold'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Token Markup Input Threshold')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min='0'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Input tokens are marked up only when they exceed this value. Default 1000.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='quota_setting.token_markup_output_threshold'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Token Markup Output Threshold')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min='0'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Output tokens are marked up only when they exceed this value. Default 100.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='quota_setting.cache_hit_boost_probability'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Cache Hit Boost Probability')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='0.01'
+                      min='0'
+                      max='1'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'After the 10% input markup, if cache hit rate is below the target, raise it to the target with this probability (0.9 = 90%). 0 disables it.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='quota_setting.cache_hit_boost_target'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Cache Hit Boost Target')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='0.01'
+                      min='0'
+                      max='1'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Target cache hit rate after markup (0.9 = 90%). Only applied to allowlisted OpenAI/xAI channels that already have cache reads.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='quota_setting.cache_hit_boost_channel_ids'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Cache Hit Boost Channel IDs')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='12,34,56'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Comma-separated channel IDs allowed to boost cache hit rate. Empty means no channel is boosted.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
                 )}
               />
             </SettingsFormGridItem>

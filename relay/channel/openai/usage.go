@@ -50,7 +50,7 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 		}
 	}
 
-	return service.InflateUpstreamUsage(usage)
+	return service.InflateUpstreamUsageForChannel(usage, info.GetChannelID())
 }
 
 func extractCachedTokensFromBody(body []byte) (int, bool) {

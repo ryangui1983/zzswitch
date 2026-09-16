@@ -72,6 +72,18 @@ const BILLING_SECTIONS = [
           quota_setting: {
             enable_free_model_pre_consume:
               settings['quota_setting.enable_free_model_pre_consume'],
+            token_markup_ratio:
+              settings['quota_setting.token_markup_ratio'] ?? 0.1,
+            token_markup_input_threshold:
+              settings['quota_setting.token_markup_input_threshold'] ?? 1000,
+            token_markup_output_threshold:
+              settings['quota_setting.token_markup_output_threshold'] ?? 100,
+            cache_hit_boost_probability:
+              settings['quota_setting.cache_hit_boost_probability'] ?? 0.9,
+            cache_hit_boost_target:
+              settings['quota_setting.cache_hit_boost_target'] ?? 0.9,
+            cache_hit_boost_channel_ids:
+              settings['quota_setting.cache_hit_boost_channel_ids'] ?? '',
           },
         }}
         complianceConfirmed={

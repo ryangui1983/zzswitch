@@ -221,16 +221,16 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		quota = 0
 		logContent += "（可能是上游超时）"
 		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, "+
-			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, modelName, relayInfo.FinalPreConsumedQuota))
+			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.GetChannelID(), relayInfo.TokenId, modelName, relayInfo.FinalPreConsumedQuota))
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
-		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		model.UpdateChannelUsedQuota(relayInfo.GetChannelID(), quota)
 		if groupRatio > 0 {
 			channelRate := 1.0
 			if relayInfo.ChannelMeta != nil {
 				channelRate = relayInfo.ChannelMeta.ChannelSetting.GetUpstreamRateMultiplier()
 			}
-			model.UpdateChannelUpstreamCost(relayInfo.ChannelId, float64(quota)/groupRatio*channelRate)
+			model.UpdateChannelUpstreamCost(relayInfo.GetChannelID(), float64(quota)/groupRatio*channelRate)
 		}
 		model.GiveAffCommission(relayInfo.UserId, quota)
 	}
@@ -250,7 +250,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
-		ChannelId:        relayInfo.ChannelId,
+		ChannelId:        relayInfo.GetChannelID(),
 		PromptTokens:     usage.InputTokens,
 		CompletionTokens: usage.OutputTokens,
 		ModelName:        logModel,
@@ -295,7 +295,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	if usage == nil {
 		usage = &dto.Usage{PromptTokens: relayInfo.GetEstimatePromptTokens(), TotalTokens: relayInfo.GetEstimatePromptTokens()}
 	}
-	InflateUpstreamUsage(usage)
+	InflateUpstreamUsageForChannel(usage, relayInfo.GetChannelID())
 
 	var tieredUsedVars map[string]bool
 	if snap := relayInfo.TieredBillingSnapshot; snap != nil {
@@ -363,16 +363,16 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		quota = 0
 		logContent += "（可能是上游超时）"
 		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, "+
-			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, billingModelName, relayInfo.FinalPreConsumedQuota))
+			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.GetChannelID(), relayInfo.TokenId, billingModelName, relayInfo.FinalPreConsumedQuota))
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
-		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		model.UpdateChannelUsedQuota(relayInfo.GetChannelID(), quota)
 		if groupRatio > 0 {
 			channelRate := 1.0
 			if relayInfo.ChannelMeta != nil {
 				channelRate = relayInfo.ChannelMeta.ChannelSetting.GetUpstreamRateMultiplier()
 			}
-			model.UpdateChannelUpstreamCost(relayInfo.ChannelId, float64(quota)/groupRatio*channelRate)
+			model.UpdateChannelUpstreamCost(relayInfo.GetChannelID(), float64(quota)/groupRatio*channelRate)
 		}
 		model.GiveAffCommission(relayInfo.UserId, quota)
 	}
@@ -392,7 +392,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
-		ChannelId:        relayInfo.ChannelId,
+		ChannelId:        relayInfo.GetChannelID(),
 		PromptTokens:     usage.PromptTokens,
 		CompletionTokens: usage.CompletionTokens,
 		ModelName:        logModel,

@@ -251,6 +251,8 @@ type Usage struct {
 	// TokensInflated is an in-process flag so 10% upstream usage markup
 	// is applied once even if both response post-processing and settlement call it.
 	TokensInflated bool `json:"-"`
+	// MarkupChannelId is the relay channel used to decide cache-hit boost.
+	MarkupChannelId int `json:"-"`
 }
 
 type OpenAIVideoResponse struct {
