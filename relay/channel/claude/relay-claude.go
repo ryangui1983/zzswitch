@@ -115,6 +115,15 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 				data = patchClaudeMessageDeltaUsageData(data, buildMessageDeltaPatchUsage(&claudeResponse, claudeInfo))
 			}
 		}
+		if claudeResponse.Type == "message_start" || claudeResponse.Type == "message_delta" {
+			if inf := service.InflatedUsageCopy(claudeInfo.Usage); inf != nil {
+				prefix := "usage"
+				if claudeResponse.Type == "message_start" {
+					prefix = "message.usage"
+				}
+				data = string(service.OverlayClaudeUsageJSON([]byte(data), inf, prefix))
+			}
+		}
 		countClaudeStreamBillableTools(c, info, &claudeResponse)
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
@@ -135,6 +144,10 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 
 		if response == nil {
 			return nil
+		}
+		if inf := service.InflatedUsageCopy(claudeInfo.Usage); inf != nil && service.ValidUsage(inf) {
+			mapped := buildOpenAIStyleUsageFromClaudeUsage(inf)
+			response.Usage = &mapped
 		}
 		err = helper.ObjectData(c, response)
 		if err != nil {
@@ -254,6 +267,7 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 		claudeInfo.Usage.UsageSemantic = "anthropic"
 	}
 	relayconvert.FinalizeClaudeStreamBillingUsage(claudeInfo)
+	service.InflateUpstreamUsage(claudeInfo.Usage)
 
 	if info.RelayFormat == types.RelayFormatClaude {
 		//
@@ -333,6 +347,8 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
+		service.InflateUpstreamUsage(claudeInfo.Usage)
+		service.ApplyInflatedCountsToClaudeUsage(claudeResponse.Usage, claudeInfo.Usage)
 	}
 	var responseData []byte
 	switch info.RelayFormat {
@@ -360,7 +376,11 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 	case types.RelayFormatClaude:
-		responseData = data
+		if claudeResponse.Usage != nil {
+			responseData = service.OverlayClaudeUsageJSON(data, claudeInfo.Usage, "usage")
+		} else {
+			responseData = data
+		}
 	case types.RelayFormatGemini:
 		{
 			convertResult, convertErr := service.ConvertResponse(c, info, types.RelayFormatGemini, &claudeResponse)

@@ -43,6 +43,7 @@ func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	}
 
 	if streamResponse.Usage != nil {
+		streamResponse.Usage = service.InflatedUsageCopy(streamResponse.Usage)
 		info.EnsureClaudeConvertInfo().Usage = streamResponse.Usage
 	}
 	result, err := service.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
@@ -64,6 +65,9 @@ func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err != nil {
 		logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
 		return err
+	}
+	if streamResponse.Usage != nil {
+		streamResponse.Usage = service.InflatedUsageCopy(streamResponse.Usage)
 	}
 
 	state, err := chatToGeminiStreamState(info, &streamResponse)
@@ -210,6 +214,7 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		}
 
 		info.ClaudeConvertInfo.Usage = usage
+		streamResponse.Usage = usage
 
 		result, err := service.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
 		if err != nil {

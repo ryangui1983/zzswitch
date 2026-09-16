@@ -83,6 +83,9 @@ func convertResponsesResponseForClient(c *gin.Context, info *relaycommon.RelayIn
 	if usage == nil || usage.TotalTokens == 0 {
 		text := service.ExtractOutputTextFromResponses(response)
 		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
+	if usage != nil {
+		service.InflateUpstreamUsage(usage)
 		response.Usage = relayconvert.UsageFromChatUsage(usage)
 	}
 
@@ -90,8 +93,11 @@ func convertResponsesResponseForClient(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, nil, err
 	}
-	if result.Usage != nil && result.Usage.TotalTokens != 0 {
-		usage = result.Usage
+	if usage == nil || !usage.TokensInflated {
+		if result.Usage != nil && result.Usage.TotalTokens != 0 {
+			usage = result.Usage
+		}
+		service.InflateUpstreamUsage(usage)
 	}
 	return result.Value, usage, nil
 }
@@ -225,6 +231,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			if len(value.Choices) == 0 && value.Usage == nil {
 				return true
 			}
+			if value.Usage != nil {
+				value.Usage = service.InflatedUsageCopy(value.Usage)
+			}
 			if err := helper.ObjectData(c, &value); err != nil {
 				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 				return false
@@ -234,12 +243,19 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			if value == nil || (len(value.Choices) == 0 && value.Usage == nil) {
 				return true
 			}
+			if value.Usage != nil {
+				value.Usage = service.InflatedUsageCopy(value.Usage)
+			}
 			if err := helper.ObjectData(c, value); err != nil {
 				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 				return false
 			}
 			return true
 		case dto.ClaudeResponse:
+			if value.Usage != nil {
+				tmp := &dto.Usage{PromptTokens: value.Usage.InputTokens, CompletionTokens: value.Usage.OutputTokens, TotalTokens: value.Usage.InputTokens + value.Usage.OutputTokens}
+				service.ApplyInflatedCountsToClaudeUsage(value.Usage, service.InflatedUsageCopy(tmp))
+			}
 			if err := helper.ClaudeData(c, value); err != nil {
 				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 				return false
@@ -248,6 +264,10 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		case *dto.ClaudeResponse:
 			if value == nil {
 				return true
+			}
+			if value.Usage != nil {
+				tmp := &dto.Usage{PromptTokens: value.Usage.InputTokens, CompletionTokens: value.Usage.OutputTokens, TotalTokens: value.Usage.InputTokens + value.Usage.OutputTokens}
+				service.ApplyInflatedCountsToClaudeUsage(value.Usage, service.InflatedUsageCopy(tmp))
 			}
 			if err := helper.ClaudeData(c, *value); err != nil {
 				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -315,6 +335,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	usage := state.Usage()
 	if usage == nil || usage.TotalTokens == 0 {
 		usage = service.ResponseText2Usage(c, state.UsageText(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
+	if usage != nil {
+		service.InflateUpstreamUsage(usage)
 		state.SetUsage(usage)
 	}
 

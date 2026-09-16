@@ -38,13 +38,15 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 	responseBody = rewriteSGLangResponsesCreatedAt(info, responseBody, "created_at", responsesResponse.CreatedAt)
 
-	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
-
 	// compute usage
 	usage := &dto.Usage{}
 	service.ApplyResponsesUsage(usage, responsesResponse.Usage)
-	service.InflateUpstreamUsage(usage)
+	if service.InflateUpstreamUsage(usage) {
+		responseBody = service.OverlayResponsesUsageJSON(responseBody, usage, "usage")
+	}
+
+	// 写入新的 response body
+	service.IOCopyBytesGracefully(c, resp, responseBody)
 	// Count actual tool invocations from Output (not tool declarations).
 	for _, output := range responsesResponse.Output {
 		switch output.Type {
@@ -88,14 +90,21 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
-			if streamResponse.Response != nil {
-				data = string(rewriteSGLangResponsesCreatedAt(info, []byte(data), "response.created_at", streamResponse.Response.CreatedAt))
+		if streamResponse.Response != nil {
+			data = string(rewriteSGLangResponsesCreatedAt(info, []byte(data), "response.created_at", streamResponse.Response.CreatedAt))
+		}
+		if streamResponse.Type == "response.completed" || streamResponse.Type == "response.done" {
+			logger.LogInfo(c, fmt.Sprintf("responses completed event, request_id=%s data=%s", info.RequestId, data))
+		}
+		accumulator.Observe(&streamResponse)
+		if streamResponse.Response != nil && streamResponse.Response.Usage != nil {
+			tmp := &dto.Usage{}
+			service.ApplyResponsesUsage(tmp, streamResponse.Response.Usage)
+			if inf := service.InflatedUsageCopy(tmp); inf != nil && (inf.PromptTokens != tmp.PromptTokens || inf.CompletionTokens != tmp.CompletionTokens) {
+				data = string(service.OverlayResponsesUsageJSON(common.StringToByteSlice(data), inf, "response.usage"))
 			}
-			if streamResponse.Type == "response.completed" || streamResponse.Type == "response.done" {
-				logger.LogInfo(c, fmt.Sprintf("responses completed event, request_id=%s data=%s", info.RequestId, data))
-			}
-			sendResponsesStreamData(c, streamResponse, data)
-			accumulator.Observe(&streamResponse)
+		}
+		sendResponsesStreamData(c, streamResponse, data)
 	})
 
 	logger.LogInfo(c, fmt.Sprintf("responses stream ended, request_id=%s end_reason=%s received=%d",

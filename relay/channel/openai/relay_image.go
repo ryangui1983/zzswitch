@@ -44,11 +44,14 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 
 	info.UpdateImageCount(gjson.GetBytes(responseBody, "data.#").Int())
 
+	normalizeOpenAIUsage(&usageResp.Usage)
+	if applyUsagePostProcessing(info, &usageResp.Usage, responseBody) {
+		responseBody = service.OverlayChatUsageJSON(responseBody, &usageResp.Usage)
+		responseBody = service.OverlayResponsesUsageJSON(responseBody, &usageResp.Usage, "usage")
+	}
+
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
-
-	normalizeOpenAIUsage(&usageResp.Usage)
-	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
 }
 
@@ -116,7 +119,13 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		if err := common.Unmarshal(raw, &chunk); err == nil {
 			normalizeOpenAIUsage(&chunk.Usage)
 			if service.ValidUsage(&chunk.Usage) {
-				usage = &chunk.Usage
+				u := chunk.Usage
+				modified := applyUsagePostProcessing(info, &u, raw)
+				usage = &u
+				if modified {
+					raw = service.OverlayChatUsageJSON(raw, usage)
+					raw = service.OverlayResponsesUsageJSON(raw, usage, "usage")
+				}
 			}
 			if chunk.Type == "image_generation.completed" || chunk.Type == "image_edit.completed" {
 				completedImages++

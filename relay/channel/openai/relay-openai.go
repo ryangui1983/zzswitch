@@ -19,18 +19,41 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func overlayInflatedChatUsage(data string) string {
+	var streamResponse dto.ChatCompletionsStreamResponse
+	if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+		return data
+	}
+	if streamResponse.Usage == nil || !service.ValidUsage(streamResponse.Usage) {
+		return data
+	}
+	inflated := service.InflatedUsageCopy(streamResponse.Usage)
+	if inflated.PromptTokens == streamResponse.Usage.PromptTokens &&
+		inflated.CompletionTokens == streamResponse.Usage.CompletionTokens {
+		return data
+	}
+	return string(service.OverlayChatUsageJSON(common.StringToByteSlice(data), inflated))
+}
+
 func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	if data == "" {
 		return nil
 	}
 
 	if !forceFormat && !thinkToContent {
+		if inflated := overlayInflatedChatUsage(data); inflated != data {
+			return helper.StringData(c, inflated)
+		}
 		return helper.StringData(c, data)
 	}
 
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
 	if err := common.UnmarshalJsonStr(data, &lastStreamResponse); err != nil {
 		return err
+	}
+
+	if lastStreamResponse.Usage != nil && service.ValidUsage(lastStreamResponse.Usage) {
+		lastStreamResponse.Usage = service.InflatedUsageCopy(lastStreamResponse.Usage)
 	}
 
 	if !thinkToContent {

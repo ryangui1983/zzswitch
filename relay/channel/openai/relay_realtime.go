@@ -123,7 +123,16 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 				}
 
 				if realtimeEvent.Type == dto.RealtimeEventTypeResponseDone {
-					realtimeUsage := realtimeEvent.Response.Usage
+					if realtimeEvent.Response != nil && realtimeEvent.Response.Usage != nil {
+						service.InflateRealtimeUsage(realtimeEvent.Response.Usage)
+						if patched, err := common.Marshal(realtimeEvent); err == nil {
+							message = patched
+						}
+					}
+					var realtimeUsage *dto.RealtimeUsage
+					if realtimeEvent.Response != nil {
+						realtimeUsage = realtimeEvent.Response.Usage
+					}
 					if realtimeUsage != nil {
 						usage.TotalTokens += realtimeUsage.TotalTokens
 						usage.InputTokens += realtimeUsage.InputTokens
