@@ -36,6 +36,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { formatQuota } from '@/lib/format'
 
+import { CacheHitBoostChannelPicker } from './cache-hit-boost-channel-picker'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import {
@@ -446,9 +447,10 @@ export function QuotaSettingsSection({
                   <FormItem>
                     <FormLabel>{t('Cache Hit Boost Channel IDs')}</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder='12,34,56'
-                        {...field}
+                      <CacheHitBoostChannelPicker
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        disabled={updateOption.isPending}
                       />
                     </FormControl>
                     <FormDescription>
