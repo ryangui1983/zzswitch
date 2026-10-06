@@ -3,7 +3,6 @@ package controller
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
-	"github.com/samber/lo"
 )
 
 type SubscriptionEpayPayRequest struct {
@@ -64,12 +62,12 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	callBackAddress := service.GetCallbackAddress()
-	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
+	returnUrl, err := parseEpayCallbackURL(callBackAddress + "/api/subscription/epay/return")
 	if err != nil {
 		common.ApiErrorMsg(c, "回调地址配置错误")
 		return
 	}
-	notifyUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/notify")
+	notifyUrl, err := parseEpayCallbackURL(callBackAddress + "/api/subscription/epay/notify")
 	if err != nil {
 		common.ApiErrorMsg(c, "回调地址配置错误")
 		return
@@ -101,7 +99,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
-		Name:           fmt.Sprintf("SUB:%s", plan.Title),
+		Name:           service.SanitizeEpayGoodsName(fmt.Sprintf("SUB:%s", plan.Title)),
 		Money:          strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
@@ -116,43 +114,19 @@ func SubscriptionRequestEpay(c *gin.Context) {
 }
 
 func SubscriptionEpayNotify(c *gin.Context) {
-	var params map[string]string
-
-	if c.Request.Method == "POST" {
-		// POST 请求：从 POST body 解析参数
-		if err := c.Request.ParseForm(); err != nil {
-			_, _ = c.Writer.Write([]byte("fail"))
-			return
-		}
-		params = lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
-			r[t] = c.Request.PostForm.Get(t)
-			return r
-		}, map[string]string{})
-	} else {
-		// GET 请求：从 URL Query 解析参数
-		params = lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
-			r[t] = c.Request.URL.Query().Get(t)
-			return r
-		}, map[string]string{})
-	}
-
-	if len(params) == 0 {
+	params, parseErr := parseEpayCallbackParams(c)
+	if parseErr != nil || len(params) == 0 {
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 
-	client := GetEpayClient()
-	if client == nil {
-		_, _ = c.Writer.Write([]byte("fail"))
-		return
-	}
-	verifyInfo, err := client.Verify(params)
-	if err != nil || !verifyInfo.VerifyStatus {
+	verifyInfo, err := service.VerifyEpayNotify(GetEpayClient(), params)
+	if err != nil {
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
 
-	if verifyInfo.TradeStatus != epay.StatusTradeSuccess {
+	if order := model.GetSubscriptionOrderByTradeNo(verifyInfo.ServiceTradeNo); order != nil && !service.EpayMoneyMatches(verifyInfo.Money, order.Money) {
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
@@ -168,53 +142,13 @@ func SubscriptionEpayNotify(c *gin.Context) {
 	_, _ = c.Writer.Write([]byte("success"))
 }
 
-// SubscriptionEpayReturn handles browser return after payment.
-// It verifies the payload and completes the order, then redirects to console.
+// SubscriptionEpayReturn only redirects. Fulfillment happens in SubscriptionEpayNotify.
 func SubscriptionEpayReturn(c *gin.Context) {
-	var params map[string]string
-
-	if c.Request.Method == "POST" {
-		// POST 请求：从 POST body 解析参数
-		if err := c.Request.ParseForm(); err != nil {
-			c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
-			return
+	tradeNo := c.Query("out_trade_no")
+	if tradeNo == "" {
+		if err := c.Request.ParseForm(); err == nil {
+			tradeNo = c.PostForm("out_trade_no")
 		}
-		params = lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
-			r[t] = c.Request.PostForm.Get(t)
-			return r
-		}, map[string]string{})
-	} else {
-		// GET 请求：从 URL Query 解析参数
-		params = lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
-			r[t] = c.Request.URL.Query().Get(t)
-			return r
-		}, map[string]string{})
 	}
-
-	if len(params) == 0 {
-		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
-		return
-	}
-
-	client := GetEpayClient()
-	if client == nil {
-		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
-		return
-	}
-	verifyInfo, err := client.Verify(params)
-	if err != nil || !verifyInfo.VerifyStatus {
-		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
-		return
-	}
-	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
-		LockOrder(verifyInfo.ServiceTradeNo)
-		defer UnlockOrder(verifyInfo.ServiceTradeNo)
-		if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), model.PaymentProviderEpay, verifyInfo.Type); err != nil {
-			c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
-			return
-		}
-		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=success"))
-		return
-	}
-	c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=pending"))
+	c.Redirect(http.StatusFound, epayBrowserReturnPath(model.GetSubscriptionOrderByTradeNo(tradeNo)))
 }
