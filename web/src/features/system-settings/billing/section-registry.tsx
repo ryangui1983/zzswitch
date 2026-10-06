@@ -84,6 +84,12 @@ const BILLING_SECTIONS = [
               settings['quota_setting.cache_hit_boost_target'] ?? 0.9,
             cache_hit_boost_channel_ids:
               settings['quota_setting.cache_hit_boost_channel_ids'] ?? '',
+            cache_hit_boost_max_output_tps:
+              settings['quota_setting.cache_hit_boost_max_output_tps'] ?? 80,
+            cache_hit_boost_max_extra_ratio:
+              settings['quota_setting.cache_hit_boost_max_extra_ratio'] ?? 0.1,
+            cache_hit_boost_budget_ratio:
+              settings['quota_setting.cache_hit_boost_budget_ratio'] ?? 0.05,
           },
         }}
         complianceConfirmed={

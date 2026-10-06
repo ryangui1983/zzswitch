@@ -9,12 +9,15 @@ import (
 
 type QuotaSetting struct {
 	EnableFreeModelPreConsume  bool    `json:"enable_free_model_pre_consume"`
-	TokenMarkupRatio           float64 `json:"token_markup_ratio"`            // 输入/输出/缓存写入加价比例，0.1 = 10%
-	TokenMarkupInputThreshold  int     `json:"token_markup_input_threshold"`  // 输入超过该值才加价
-	TokenMarkupOutputThreshold int     `json:"token_markup_output_threshold"` // 输出超过该值才加价
-	CacheHitBoostProbability   float64 `json:"cache_hit_boost_probability"`   // 命中率低于目标时提升的概率，0-1
-	CacheHitBoostTarget        float64 `json:"cache_hit_boost_target"`        // 目标命中率，0-1，默认 0.9
-	CacheHitBoostChannelIds    string  `json:"cache_hit_boost_channel_ids"`   // 逗号分隔的渠道 ID，仅这些渠道做命中率提升
+	TokenMarkupRatio           float64 `json:"token_markup_ratio"`              // 输入/输出/缓存写入加价比例，0.1 = 10%
+	TokenMarkupInputThreshold  int     `json:"token_markup_input_threshold"`    // 输入超过该值才加价
+	TokenMarkupOutputThreshold int     `json:"token_markup_output_threshold"`   // 输出超过该值才加价
+	CacheHitBoostProbability   float64 `json:"cache_hit_boost_probability"`     // 命中率低于目标时提升的概率，0-1
+	CacheHitBoostTarget        float64 `json:"cache_hit_boost_target"`          // 目标命中率，0-1，默认 0.9
+	CacheHitBoostChannelIds    string  `json:"cache_hit_boost_channel_ids"`     // 逗号分隔的渠道 ID，仅这些渠道做命中率提升
+	CacheHitBoostMaxOutputTPS  float64 `json:"cache_hit_boost_max_output_tps"`  // boosted output cap in token/s, default 80; negative disables
+	CacheHitBoostMaxExtraRatio float64 `json:"cache_hit_boost_max_extra_ratio"` // when over red line, extra scale cap (0.1 = +10%)
+	CacheHitBoostBudgetRatio   float64 `json:"cache_hit_boost_budget_ratio"`    // share of original charge used to raise hit, default 0.05
 }
 
 var quotaSetting = QuotaSetting{
@@ -25,6 +28,9 @@ var quotaSetting = QuotaSetting{
 	CacheHitBoostProbability:   0.9,
 	CacheHitBoostTarget:        0.9,
 	CacheHitBoostChannelIds:    "",
+	CacheHitBoostMaxOutputTPS:  80,
+	CacheHitBoostMaxExtraRatio: 0.1,
+	CacheHitBoostBudgetRatio:   0.05,
 }
 
 func init() {
@@ -53,6 +59,39 @@ func (s *QuotaSetting) EffectiveCacheHitBoostTarget() float64 {
 		return 1
 	}
 	return s.CacheHitBoostTarget
+}
+
+func (s *QuotaSetting) EffectiveCacheHitBoostMaxOutputTPS() float64 {
+	if s == nil || s.CacheHitBoostMaxOutputTPS == 0 {
+		return 80
+	}
+	if s.CacheHitBoostMaxOutputTPS < 0 {
+		return 0
+	}
+	return s.CacheHitBoostMaxOutputTPS
+}
+
+func (s *QuotaSetting) EffectiveCacheHitBoostMaxExtraRatio() float64 {
+	if s == nil || s.CacheHitBoostMaxExtraRatio == 0 {
+		return 0.1
+	}
+	if s.CacheHitBoostMaxExtraRatio < 0 {
+		return 0
+	}
+	return s.CacheHitBoostMaxExtraRatio
+}
+
+func (s *QuotaSetting) EffectiveCacheHitBoostBudgetRatio() float64 {
+	if s == nil || s.CacheHitBoostBudgetRatio == 0 {
+		return 0.05
+	}
+	if s.CacheHitBoostBudgetRatio < 0 {
+		return 0
+	}
+	if s.CacheHitBoostBudgetRatio > 1 {
+		return 1
+	}
+	return s.CacheHitBoostBudgetRatio
 }
 
 func (s *QuotaSetting) AllowsCacheHitBoost(channelId int) bool {

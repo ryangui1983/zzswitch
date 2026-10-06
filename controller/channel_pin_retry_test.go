@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +18,7 @@ func TestShouldRetryHonorsPinRetryMode(t *testing.T) {
 	openaiErr := types.NewOpenAIError(errors.New("upstream"), types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError)
 
 	c := newPinRetryContext()
-	assert.True(t, shouldRetry(c, openaiErr, 1))
+	assert.True(t, shouldRetry(c, openaiErr))
 
 	origin := newPinRetryContext()
 	service.GetChannelConstraints(origin).AddPin(dto.ChannelPin{
@@ -27,7 +27,7 @@ func TestShouldRetryHonorsPinRetryMode(t *testing.T) {
 		Rank:      dto.PinRankOriginTask,
 		RetryMode: dto.PinRetrySameChannel,
 	})
-	assert.True(t, shouldRetry(origin, openaiErr, 1), "origin pin retries on the same channel")
+	assert.True(t, shouldRetry(origin, openaiErr), "origin pin retries on the same channel")
 
 	token := newPinRetryContext()
 	service.GetChannelConstraints(token).AddPin(dto.ChannelPin{
@@ -36,7 +36,7 @@ func TestShouldRetryHonorsPinRetryMode(t *testing.T) {
 		Rank:      dto.PinRankToken,
 		RetryMode: dto.PinRetrySingleAttempt,
 	})
-	assert.False(t, shouldRetry(token, openaiErr, 1), "token pin suppresses retry")
+	assert.False(t, shouldRetry(token, openaiErr), "token pin suppresses retry")
 }
 
 func TestShouldRetryTaskRelayHonorsPinRetryMode(t *testing.T) {
@@ -84,7 +84,15 @@ func TestSameChannelPinsMergeToStricterRetryMode(t *testing.T) {
 	assert.Equal(t, 7, pin.ChannelId)
 	assert.Equal(t, dto.PinRetrySingleAttempt, pin.RetryMode)
 	assert.Empty(t, overridden)
-	assert.False(t, shouldRetry(c, types.NewOpenAIError(errors.New("upstream"), types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError), 1))
+	assert.False(t, shouldRetry(c, types.NewOpenAIError(errors.New("upstream"), types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError)))
+}
+
+func TestShouldRetryRotatesWhenGlobalRetryTimesZero(t *testing.T) {
+	c := newPinRetryContext()
+	gateway := types.NewOpenAIError(errors.New("bad gateway"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway)
+	assert.True(t, shouldRetry(c, gateway), "502 must still rotate to the next channel when RetryTimes is 0")
+	timeout := types.NewOpenAIError(errors.New("gateway timeout"), types.ErrorCodeBadResponseStatusCode, http.StatusGatewayTimeout)
+	assert.False(t, shouldRetry(c, timeout), "504 still skips rotation")
 }
 
 func newPinRetryContext() *gin.Context {

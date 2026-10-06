@@ -263,6 +263,9 @@ type Usage struct {
 	// cache-hit boost compensation uses the same prices as settlement.
 	MarkupExprString string `json:"-"`
 	MarkupExprHash   string `json:"-"`
+	// MarkupElapsedMs is generation time (first token to now, or whole
+	// request if no first-token mark) used to cap boosted output TPS.
+	MarkupElapsedMs int64 `json:"-"`
 }
 
 type OpenAIVideoResponse struct {

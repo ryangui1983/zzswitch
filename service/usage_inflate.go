@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"math"
+	"time"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -16,8 +17,9 @@ import (
 // InflateUpstreamUsage overwrites upstream usage: input tokens above 1000
 // and output tokens above 100 are increased by 10% (integer division).
 // Cache-write tokens are marked up 10% when input is marked up.
-// If cache-read hit rate is then below 90%, it may be raised to 90% with
-// the configured probability. Safe to call more than once.
+// If cache-read hit rate is below the target, a configured share of the
+// original charge may be spent to raise it by reallocating uncached input
+// into cache reads. Output is not scaled for the boost. Safe to call more than once.
 func InflateUpstreamUsage(usage *dto.Usage) bool {
 	if usage == nil || usage.TokensInflated {
 		return false
@@ -92,10 +94,26 @@ func AttachMarkupWeightsFromInfo(usage *dto.Usage, info *relaycommon.RelayInfo) 
 	usage.MarkupCompletionRatio = info.PriceData.CompletionRatio
 	usage.MarkupCacheCreationRatio = info.PriceData.CacheCreationRatio
 	usage.MarkupHasWeights = true
+	usage.MarkupElapsedMs = outputElapsedMs(info)
 	if snap := info.TieredBillingSnapshot; snap != nil {
 		usage.MarkupExprString = snap.ExprString
 		usage.MarkupExprHash = snap.ExprHash
 	}
+}
+
+func outputElapsedMs(info *relaycommon.RelayInfo) int64 {
+	if info == nil || info.StartTime.IsZero() {
+		return 0
+	}
+	start := info.StartTime
+	if info.HasSendResponse() {
+		start = info.FirstResponseTime
+	}
+	d := time.Since(start)
+	if d <= 0 {
+		return 0
+	}
+	return d.Milliseconds()
 }
 
 func InflateUpstreamUsageFromInfo(usage *dto.Usage, info *relaycommon.RelayInfo) bool {
@@ -257,6 +275,10 @@ func maybeBoostCacheHit(usage *dto.Usage, originalWeight float64) bool {
 	if prob <= 0 {
 		return false
 	}
+	budgetRatio := setting.EffectiveCacheHitBoostBudgetRatio()
+	if budgetRatio <= 0 {
+		return false
+	}
 	targetRate := setting.EffectiveCacheHitBoostTarget()
 	cacheRead := usage.PromptTokensDetails.CachedTokens
 	if cacheRead <= 0 {
@@ -266,7 +288,8 @@ func maybeBoostCacheHit(usage *dto.Usage, originalWeight float64) bool {
 	if denom <= 0 {
 		return false
 	}
-	if float64(cacheRead)/float64(denom) >= targetRate {
+	preBoostHit := float64(cacheRead) / float64(denom)
+	if preBoostHit >= targetRate {
 		return false
 	}
 	if !shouldBoostCacheHit(usage, prob) {
@@ -274,13 +297,54 @@ func maybeBoostCacheHit(usage *dto.Usage, originalWeight float64) bool {
 	}
 
 	rate := jitteredHitRate(usage, targetRate)
-	r := boostScaleFactor(usage, rate, originalWeight)
-	if r > 1 {
-		scaleUsageCounts(usage, r)
+	markedUp := usageBillingWeight(usage)
+	floor := markedUp - originalWeight*budgetRatio
+	if floor < 0 {
+		floor = 0
 	}
-	applyTargetCacheHit(usage, rate)
-	compensateBoostRevenue(usage, originalWeight)
+	h := maxAffordableHitRate(usage, floor, preBoostHit, rate)
+	if h <= preBoostHit {
+		return false
+	}
+	applyCacheHitRate(usage, h, true)
 	return true
+}
+
+func maxAffordableHitRate(usage *dto.Usage, floorWeight, lo, hi float64) float64 {
+	if hi < lo {
+		hi = lo
+	}
+	if billingWeightAtTargetHit(usage, hi)+1e-9 >= floorWeight {
+		return hi
+	}
+	if billingWeightAtTargetHit(usage, lo)+1e-9 < floorWeight {
+		return lo
+	}
+	best := lo
+	for i := 0; i < 24; i++ {
+		mid := (lo + hi) / 2
+		if billingWeightAtTargetHit(usage, mid)+1e-9 >= floorWeight {
+			best = mid
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	return best
+}
+
+func billingWeightAtTargetHit(usage *dto.Usage, targetRate float64) float64 {
+	if usage == nil {
+		return 0
+	}
+	cp := *usage
+	cp.PromptTokensDetails = usage.PromptTokensDetails.Clone()
+	if usage.InputTokensDetails != nil {
+		cloned := usage.InputTokensDetails.Clone()
+		cp.InputTokensDetails = &cloned
+	}
+	applyCacheHitRate(&cp, targetRate, true)
+	return usageBillingWeight(&cp)
 }
 
 const cacheHitJitter = 0.05
@@ -321,102 +385,11 @@ func jitteredHitRate(usage *dto.Usage, target float64) float64 {
 	return rate
 }
 
-func scaleInt(n int, r float64) int {
-	if n <= 0 || r <= 1 {
-		return n
-	}
-	return int(math.Ceil(float64(n) * r))
-}
-
-func boostScaleFactor(usage *dto.Usage, targetRate, originalWeight float64) float64 {
-	b := billingWeightAtTargetHit(usage, targetRate)
-	if b <= 0 {
-		return 1
-	}
-	r := originalWeight / b
-	if r < 1 {
-		return 1
-	}
-	return r
-}
-
-func billingWeightAtTargetHit(usage *dto.Usage, targetRate float64) float64 {
-	if usage == nil {
-		return 0
-	}
-	cp := *usage
-	cp.PromptTokensDetails = usage.PromptTokensDetails.Clone()
-	if usage.InputTokensDetails != nil {
-		cloned := usage.InputTokensDetails.Clone()
-		cp.InputTokensDetails = &cloned
-	}
-	applyTargetCacheHit(&cp, targetRate)
-	return usageBillingWeight(&cp)
-}
-
-func scaleUsageCounts(usage *dto.Usage, r float64) {
-	if usage == nil || r <= 1 {
-		return
-	}
-	prompt, completion := usagePromptCompletion(usage)
-	usage.PromptTokens = scaleInt(prompt, r)
-	usage.InputTokens = usage.PromptTokens
-	usage.CompletionTokens = scaleInt(completion, r)
-	usage.OutputTokens = usage.CompletionTokens
-	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-	scaleCacheWrite(usage, r)
-	scaleInputTokenDetails(&usage.PromptTokensDetails, r)
-	if usage.InputTokensDetails != nil {
-		scaleInputTokenDetails(usage.InputTokensDetails, r)
-	}
-	scaleOutputTokenDetails(&usage.CompletionTokenDetails, usage.CompletionTokens, r)
-	if usage.OutputTokensDetails != nil {
-		scaleOutputTokenDetails(usage.OutputTokensDetails, usage.CompletionTokens, r)
-	}
-}
-
-func scaleCacheWrite(usage *dto.Usage, r float64) {
-	details := usage.PromptTokensDetails
-	details.CachedTokens = scaleInt(details.CachedTokens, r)
-	details.CacheWriteTokens = scaleInt(details.CacheWriteTokens, r)
-	details.CachedCreationTokens = scaleInt(details.CachedCreationTokens, r)
-	usage.PromptTokensDetails = details
-	if usage.InputTokensDetails != nil {
-		usage.InputTokensDetails.CachedTokens = scaleInt(usage.InputTokensDetails.CachedTokens, r)
-		usage.InputTokensDetails.CacheWriteTokens = scaleInt(usage.InputTokensDetails.CacheWriteTokens, r)
-		usage.InputTokensDetails.CachedCreationTokens = scaleInt(usage.InputTokensDetails.CachedCreationTokens, r)
-	}
-	usage.ClaudeCacheCreation5mTokens = scaleInt(usage.ClaudeCacheCreation5mTokens, r)
-	usage.ClaudeCacheCreation1hTokens = scaleInt(usage.ClaudeCacheCreation1hTokens, r)
-}
-
-func scaleInputTokenDetails(d *dto.InputTokenDetails, r float64) {
-	if d == nil {
-		return
-	}
-	d.TextTokens = scaleInt(d.TextTokens, r)
-	d.AudioTokens = scaleInt(d.AudioTokens, r)
-	d.ImageTokens = scaleInt(d.ImageTokens, r)
-}
-
-func scaleOutputTokenDetails(d *dto.OutputTokenDetails, total int, r float64) {
-	if d == nil {
-		return
-	}
-	if d.TextTokens == 0 && d.ReasoningTokens == 0 && d.AudioTokens == 0 && d.ImageTokens == 0 {
-		return
-	}
-	d.ReasoningTokens = scaleInt(d.ReasoningTokens, r)
-	d.AudioTokens = scaleInt(d.AudioTokens, r)
-	d.ImageTokens = scaleInt(d.ImageTokens, r)
-	text := total - d.ReasoningTokens - d.AudioTokens - d.ImageTokens
-	if text < 0 {
-		text = 0
-	}
-	d.TextTokens = text
-}
-
 func applyTargetCacheHit(usage *dto.Usage, targetRate float64) {
+	applyCacheHitRate(usage, targetRate, false)
+}
+
+func applyCacheHitRate(usage *dto.Usage, targetRate float64, allowDecrease bool) {
 	write := usage.PromptTokensDetails.CacheCreationTokensTotal()
 	if usage.UsageSemantic == "anthropic" {
 		total := cacheHitDenominator(usage)
@@ -444,9 +417,10 @@ func applyTargetCacheHit(usage *dto.Usage, targetRate float64) {
 	if target > maxRead {
 		target = maxRead
 	}
-	if target > usage.PromptTokensDetails.CachedTokens {
-		setCacheRead(usage, target)
+	if !allowDecrease && target <= usage.PromptTokensDetails.CachedTokens {
+		return
 	}
+	setCacheRead(usage, target)
 }
 
 func markupWeights(usage *dto.Usage) (cacheRatio, completionRatio, cacheCreationRatio float64) {
@@ -500,43 +474,6 @@ func usageBillingWeight(usage *dto.Usage) float64 {
 	return float64(base) + kr*float64(cacheRead) + kw*float64(cacheWrite) + kc*float64(completion)
 }
 
-func addCompletionTokens(usage *dto.Usage, extra int) {
-	if usage == nil || extra <= 0 {
-		return
-	}
-	usage.CompletionTokens += extra
-	usage.OutputTokens += extra
-	prompt, completion := usagePromptCompletion(usage)
-	usage.PromptTokens = prompt
-	usage.InputTokens = prompt
-	usage.CompletionTokens = completion
-	usage.OutputTokens = completion
-	usage.TotalTokens = prompt + completion
-	usage.CompletionTokenDetails.TextTokens += extra
-	if usage.OutputTokensDetails != nil {
-		usage.OutputTokensDetails.TextTokens += extra
-	}
-}
-
-func compensateBoostRevenue(usage *dto.Usage, weightBefore float64) {
-	after := usageBillingWeight(usage)
-	if after+1e-9 >= weightBefore {
-		return
-	}
-	need := weightBefore - after
-	_, kc, _ := markupWeights(usage)
-	extra := 0
-	if kc > 0 {
-		extra = int(math.Ceil(need / kc))
-	}
-	if extra < 1 {
-		extra = 1
-	}
-	addCompletionTokens(usage, extra)
-	if usageBillingWeight(usage)+1e-9 < weightBefore {
-		addCompletionTokens(usage, 1)
-	}
-}
 func setCacheRead(usage *dto.Usage, n int) {
 	usage.PromptTokensDetails.CachedTokens = n
 	if usage.PromptCacheHitTokens > 0 {

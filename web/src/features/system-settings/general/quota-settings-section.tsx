@@ -69,6 +69,9 @@ const quotaSchema = z.object({
     cache_hit_boost_probability: z.coerce.number().min(0).max(1),
     cache_hit_boost_target: z.coerce.number().min(0).max(1),
     cache_hit_boost_channel_ids: z.string(),
+    cache_hit_boost_max_output_tps: z.coerce.number(),
+    cache_hit_boost_max_extra_ratio: z.coerce.number().min(0).max(1),
+    cache_hit_boost_budget_ratio: z.coerce.number().min(0).max(1),
   }),
 })
 
@@ -432,6 +435,261 @@ export function QuotaSettingsSection({
                   <FormDescription>
                     {t(
                       'Target cache hit rate after markup (0.9 = 90%). Only applied to allowlisted OpenAI/xAI channels that already have cache reads.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+
+            <FormField
+              control={form.control}
+              name='quota_setting.cache_hit_boost_budget_ratio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Cache Hit Boost Budget Ratio')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='0.01'
+                      min='0'
+                      max='1'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'After the token markup, spend this fraction of the original charge to raise cache hit rate by converting uncached input into cache reads (0.05 = 5%). Output tokens are not increased. Negative disables.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='quota_setting.enable_free_model_pre_consume'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Pre-Consume for Free Models')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When enabled, zero-cost models also pre-consume quota before final settlement.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <FormField
+              control={form.control}
+              name='quota_setting.token_markup_ratio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Token Markup Ratio')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='0.01'
+                      min='0'
+                      max='1'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Markup applied to input, output, and cache-write tokens when they exceed the thresholds (0.1 = 10%). 0 disables markup.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='quota_setting.token_markup_input_threshold'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Token Markup Input Threshold')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min='0'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Input tokens are marked up only when they exceed this value. Default 1000.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='quota_setting.token_markup_output_threshold'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Token Markup Output Threshold')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min='0'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Output tokens are marked up only when they exceed this value. Default 100.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='quota_setting.cache_hit_boost_probability'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Cache Hit Boost Probability')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='0.01'
+                      min='0'
+                      max='1'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'After the 10% input markup, if cache hit rate is below the target, raise it to the target with this probability (0.9 = 90%). 0 disables it.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='quota_setting.cache_hit_boost_target'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Cache Hit Boost Target')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='0.01'
+                      min='0'
+                      max='1'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Target cache hit rate after markup (0.9 = 90%). Only applied to allowlisted OpenAI/xAI channels that already have cache reads.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+
+            <FormField
+              control={form.control}
+              name='quota_setting.cache_hit_boost_max_output_tps'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Cache Hit Boost Max Output TPS')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='1'
+                      min='-1'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Red line for the full cache-hit boost. If boosted output would exceed this many tokens/s (jittered -5 to 0, default 80), fall back to an extra +10% scale and a lower hit rate instead. Negative disables. Already-faster replies are not slowed down.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='quota_setting.cache_hit_boost_max_extra_ratio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Cache Hit Boost Extra Ratio')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      step='0.01'
+                      min='0'
+                      max='1'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'When the full boost would cross the output TPS red line, extra input/output scale is capped at this ratio (0.1 = +10%). Hit rate is lowered if needed so revenue does not drop.'
                     )}
                   </FormDescription>
                   <FormMessage />

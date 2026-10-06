@@ -4224,10 +4224,7 @@ export function ChannelMutateDrawer({
                 {httpShardsFields}
                 <div
                   id={ADVANCED_SETTINGS_SECTION_IDS.channelHealthAutomation}
-                  className={sideDrawerSectionClassName(
-                    'flex flex-col gap-4',
-                    false
-                  )}
+                  className='flex flex-col gap-4'
                 >
                           <SubHeading
                             title={t('Channel Health Automation')}

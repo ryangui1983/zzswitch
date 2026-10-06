@@ -138,7 +138,8 @@ func TestInflateCacheWriteAndHitBoost(t *testing.T) {
 		require.True(t, InflateUpstreamUsageForChannel(usage, 1))
 		denom := usage.PromptTokens
 		require.Greater(t, denom, 0)
-		requireHitAroundTarget(t, usage)
+		require.Greater(t, usageHit(usage), 0.0)
+		require.LessOrEqual(t, usageHit(usage), 0.95)
 		require.GreaterOrEqual(t, usageBillingWeight(usage), usageBillingWeight(&dto.Usage{
 			PromptTokens:        10000,
 			CompletionTokens:    50,
@@ -194,7 +195,8 @@ func TestInflateCacheWriteAndHitBoost(t *testing.T) {
 		write := usage.PromptTokensDetails.CacheCreationTokensTotal()
 		total := usage.PromptTokens + usage.PromptTokensDetails.CachedTokens + write
 		require.Greater(t, total, 0)
-		requireHitAroundTarget(t, usage)
+		require.Greater(t, usageHit(usage), 0.0)
+		require.LessOrEqual(t, usageHit(usage), 0.95)
 		require.GreaterOrEqual(t, usageBillingWeight(usage), usageBillingWeight(&dto.Usage{
 			PromptTokens:     2000,
 			CompletionTokens: 50,
@@ -351,7 +353,8 @@ func TestCacheHitBoostDoesNotReduceRevenue(t *testing.T) {
 			MarkupCompletionRatio: 4,
 		}
 		require.True(t, InflateUpstreamUsageForChannel(usage, 1))
-		requireHitAroundTarget(t, usage)
+		require.Greater(t, usageHit(usage), 0.0)
+		require.LessOrEqual(t, usageHit(usage), 0.95)
 		require.GreaterOrEqual(t, usageBillingWeight(usage), usageBillingWeight(before))
 	})
 
@@ -387,7 +390,8 @@ func TestCacheHitBoostDoesNotReduceRevenue(t *testing.T) {
 		original := usageBillingWeight(usage)
 		require.True(t, InflateUpstreamUsageForChannel(usage, 1))
 		require.GreaterOrEqual(t, usageBillingWeight(usage), original)
-		requireHitAroundTarget(t, usage)
+		require.Greater(t, usageHit(usage), 0.0)
+		require.LessOrEqual(t, usageHit(usage), 0.95)
 	})
 	t.Run("high original hit rate keeps markup without extra scale", func(t *testing.T) {
 		usage := &dto.Usage{
@@ -403,7 +407,8 @@ func TestCacheHitBoostDoesNotReduceRevenue(t *testing.T) {
 		original := usageBillingWeight(usage)
 		require.True(t, InflateUpstreamUsageForChannel(usage, 1))
 		require.Equal(t, 11000, usage.PromptTokens)
-		requireHitAroundTarget(t, usage)
+		require.Greater(t, usageHit(usage), 0.0)
+		require.LessOrEqual(t, usageHit(usage), 0.95)
 		require.GreaterOrEqual(t, usageBillingWeight(usage), original)
 	})
 
@@ -432,18 +437,10 @@ func TestCacheHitBoostUsesTieredExprPrices(t *testing.T) {
 	}
 	original := usageBillingWeight(usage)
 	require.True(t, InflateUpstreamUsageForChannel(usage, 1))
-	requireHitAroundTarget(t, usage)
+	require.Greater(t, usageHit(usage), 0.0)
+	require.LessOrEqual(t, usageHit(usage), 0.95)
 	require.GreaterOrEqual(t, usageBillingWeight(usage), original)
 	require.Less(t, usage.PromptTokens, 8000)
-}
-
-func requireHitAroundTarget(t *testing.T, usage *dto.Usage) {
-	t.Helper()
-	denom := cacheHitDenominator(usage)
-	require.Greater(t, denom, 0)
-	hit := float64(usage.PromptTokensDetails.CachedTokens) / float64(denom)
-	require.GreaterOrEqual(t, hit, 0.84)
-	require.LessOrEqual(t, hit, 0.95)
 }
 
 func TestJitteredHitRateStaysInBand(t *testing.T) {
@@ -461,4 +458,62 @@ func TestJitteredHitRateStaysInBand(t *testing.T) {
 		require.Equal(t, rate, jitteredHitRate(u, 0.9))
 	}
 	require.Greater(t, len(seen), 5)
+}
+
+func usageHit(u *dto.Usage) float64 {
+	d := cacheHitDenominator(u)
+	if d <= 0 {
+		return 0
+	}
+	return float64(u.PromptTokensDetails.CachedTokens) / float64(d)
+}
+
+func TestCacheHitBoostSpendsOriginalBudget(t *testing.T) {
+	setting := operation_setting.GetQuotaSetting()
+	origProb := setting.CacheHitBoostProbability
+	origIds := setting.CacheHitBoostChannelIds
+	origBudget := setting.CacheHitBoostBudgetRatio
+	t.Cleanup(func() {
+		setting.CacheHitBoostProbability = origProb
+		setting.CacheHitBoostChannelIds = origIds
+		setting.CacheHitBoostBudgetRatio = origBudget
+	})
+	setting.CacheHitBoostChannelIds = "1"
+	setting.CacheHitBoostProbability = 1
+	setting.CacheHitBoostBudgetRatio = 0.05
+
+	t.Run("70 percent original hit rises a few points and output only gets markup", func(t *testing.T) {
+		usage := &dto.Usage{
+			PromptTokens:     10000,
+			CompletionTokens: 50,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens: 7000,
+			},
+			MarkupHasWeights:      true,
+			MarkupCacheRatio:      0.1,
+			MarkupCompletionRatio: 4,
+		}
+		original := usageBillingWeight(usage)
+		require.True(t, InflateUpstreamUsageForChannel(usage, 1))
+		require.Equal(t, 11000, usage.PromptTokens)
+		require.Equal(t, 50, usage.CompletionTokens)
+		hit := usageHit(usage)
+		require.InDelta(t, 0.72, hit, 0.01)
+		require.GreaterOrEqual(t, usageBillingWeight(usage), original)
+		require.InDelta(t, 4075.0, usageBillingWeight(usage), 2)
+	})
+
+	t.Run("zero budget does not raise hit", func(t *testing.T) {
+		setting.CacheHitBoostBudgetRatio = -1
+		t.Cleanup(func() { setting.CacheHitBoostBudgetRatio = 0.05 })
+		usage := &dto.Usage{
+			PromptTokens: 10000,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens: 5000,
+			},
+		}
+		require.True(t, InflateUpstreamUsageForChannel(usage, 1))
+		require.Equal(t, 11000, usage.PromptTokens)
+		require.Equal(t, 5500, usage.PromptTokensDetails.CachedTokens)
+	})
 }

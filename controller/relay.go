@@ -187,7 +187,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 				)
 				relayInfo.LastError = saturatedErr
 				retryParam.SelectRetryChannel(saturatedErr, channel)
-				if retryParam.RetryChannel != nil {
+				if retryParam.RetryChannel != nil || shouldRetry(c, saturatedErr) {
 					continue
 				}
 				newAPIError = saturatedErr
@@ -285,7 +285,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *channelError, newAPIError, false, relayInfo)
 
-
 		if operation_setting.IsImageGenerationGroupPermissionError(newAPIError.StatusCode, newAPIError.Error()) {
 			break
 		}
@@ -297,7 +296,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			continue
 		}
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		// Pool-mode rotation is bounded by exhausted channel IDs and the
+		// 1000-attempt cap, not global RetryTimes (often 0 in production).
+		if !shouldRetry(c, newAPIError) {
 			break
 		}
 	}
@@ -429,8 +430,10 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	return channel, nil
 }
 
-func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
-	return service.ShouldRetryRelayError(c, openaiErr, retryTimes)
+func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError) bool {
+	// Remaining-count 1 means "this error class is still eligible to rotate".
+	// Do not pass common.RetryTimes: a zero budget would stop failover.
+	return service.ShouldRetryRelayError(c, openaiErr, 1)
 }
 
 // intermediateLogQueue buffers root-user channel error log writes to prevent MySQL flood.

@@ -296,6 +296,9 @@ export type BillingSettings = {
   'quota_setting.cache_hit_boost_probability': number
   'quota_setting.cache_hit_boost_target': number
   'quota_setting.cache_hit_boost_channel_ids': string
+  'quota_setting.cache_hit_boost_max_output_tps': number
+  'quota_setting.cache_hit_boost_max_extra_ratio': number
+  'quota_setting.cache_hit_boost_budget_ratio': number
   QuotaPerUnit: number
   USDExchangeRate: number
   'general_setting.quota_display_type': string
