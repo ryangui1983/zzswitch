@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -231,4 +233,93 @@ func TestEnqueueSystemTaskReportsCreatedAndExistingActive(t *testing.T) {
 	require.True(t, created)
 	require.NotNil(t, second)
 	assert.NotEqual(t, first.TaskID, second.TaskID)
+}
+
+func TestRunLogCleanupTaskDeletesUsageAndAuditLogs(t *testing.T) {
+	truncate(t)
+	const cutoff int64 = 1_000
+	seedUsageLogs(t, cutoff-10, 3)
+	seedUsageLogs(t, cutoff+10, 1)
+	seedAuditLogs(t, cutoff-10, 2)
+	seedAuditLogs(t, cutoff+10, 1)
+
+	task := runClaimedLogCleanup(t, cutoff, 1)
+	require.Equal(t, model.SystemTaskStatusSucceeded, task.Status)
+
+	var result LogCleanupResult
+	require.NoError(t, json.Unmarshal([]byte(task.Result), &result))
+	assert.EqualValues(t, 5, result.DeletedCount)
+
+	assert.EqualValues(t, 0, countCreatedBefore(t, &model.Log{}, cutoff))
+	assert.EqualValues(t, 0, countCreatedBefore(t, &model.AuditLog{}, cutoff))
+	assert.EqualValues(t, 1, countCreatedAt(t, &model.Log{}, cutoff+10))
+	assert.EqualValues(t, 1, countCreatedAt(t, &model.AuditLog{}, cutoff+10))
+}
+
+func TestRunLogCleanupTaskDeletesAuditOnly(t *testing.T) {
+	truncate(t)
+	const cutoff int64 = 1_000
+	seedAuditLogs(t, cutoff-1, 4)
+
+	task := runClaimedLogCleanup(t, cutoff, 2)
+	require.Equal(t, model.SystemTaskStatusSucceeded, task.Status)
+
+	var result LogCleanupResult
+	require.NoError(t, json.Unmarshal([]byte(task.Result), &result))
+	assert.EqualValues(t, 4, result.DeletedCount)
+	assert.EqualValues(t, 0, countCreatedBefore(t, &model.AuditLog{}, cutoff))
+}
+
+func seedUsageLogs(t *testing.T, createdAt int64, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		require.NoError(t, model.LOG_DB.Create(&model.Log{
+			CreatedAt: createdAt,
+			Type:      model.LogTypeConsume,
+			Content:   "usage",
+		}).Error)
+	}
+}
+
+func seedAuditLogs(t *testing.T, createdAt int64, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		require.NoError(t, model.LOG_DB.Create(&model.AuditLog{
+			EventId:   fmt.Sprintf("evt-%d-%d-%d", createdAt, n, i),
+			CreatedAt: createdAt,
+			Category:  model.AuditCategoryLogin,
+			Action:    "login",
+		}).Error)
+	}
+}
+
+func runClaimedLogCleanup(t *testing.T, targetTimestamp int64, batchSize int) *model.SystemTask {
+	t.Helper()
+	created, err := model.CreateSystemTask(model.SystemTaskTypeLogCleanup, LogCleanupPayload{
+		TargetTimestamp: targetTimestamp,
+		BatchSize:       batchSize,
+	}, LogCleanupState{})
+	require.NoError(t, err)
+	claimed, ok, err := model.ClaimSystemTask(created.ID, created.Type, "runner-cleanup", common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, ok)
+	runLogCleanupTask(context.Background(), claimed, "runner-cleanup")
+	reloaded, err := model.GetSystemTaskByTaskID(claimed.TaskID)
+	require.NoError(t, err)
+	require.NotNil(t, reloaded)
+	return reloaded
+}
+
+func countCreatedBefore(t *testing.T, modelPtr any, timestamp int64) int64 {
+	t.Helper()
+	var total int64
+	require.NoError(t, model.LOG_DB.Model(modelPtr).Where("created_at < ?", timestamp).Count(&total).Error)
+	return total
+}
+
+func countCreatedAt(t *testing.T, modelPtr any, timestamp int64) int64 {
+	t.Helper()
+	var total int64
+	require.NoError(t, model.LOG_DB.Model(modelPtr).Where("created_at = ?", timestamp).Count(&total).Error)
+	return total
 }

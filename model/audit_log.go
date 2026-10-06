@@ -21,7 +21,8 @@ const (
 	AuditCategoryAccessToken = "access_token"
 )
 
-// AuditLog is retained independently of usage logs and their cleanup/TTL policy.
+// AuditLog is stored separately from usage logs. Manual log cleanup also
+// deletes old audit rows; ClickHouse TTL is still not applied here.
 // TokenRef identifies a PAT generation without storing its bearer credential.
 type AuditLog struct {
 	Id         int        `json:"id"`
@@ -247,7 +248,8 @@ func GetUserAccessTokenStatus(userId int) (*UserAccessTokenStatus, error) {
 }
 
 // MigrateAuditLogs also supports independently configured ClickHouse log stores.
-// No TTL clause or usage-log cleanup integration is intentional.
+// ClickHouse TTL is intentionally omitted; the on-demand log cleanup task
+// deletes old audit rows by created_at.
 func MigrateAuditLogs() error {
 	if !common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		return LOG_DB.AutoMigrate(&AuditLog{})
@@ -260,6 +262,46 @@ func MigrateAuditLogs() error {
 	) ENGINE = MergeTree()
 	PARTITION BY toYYYYMM(toDateTime(created_at))
 	ORDER BY (created_at, event_id)`).Error
+}
+
+func CountOldAuditLog(ctx context.Context, targetTimestamp int64) (int64, error) {
+	var total int64
+	if err := LOG_DB.WithContext(ctx).Model(&AuditLog{}).Where("created_at < ?", targetTimestamp).Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func DeleteOldAuditLogBatch(ctx context.Context, targetTimestamp int64, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if nil != ctx.Err() {
+		return 0, ctx.Err()
+	}
+
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		total, err := CountOldAuditLog(ctx, targetTimestamp)
+		if err != nil {
+			return 0, err
+		}
+		if total == 0 {
+			return 0, nil
+		}
+		if err := LOG_DB.WithContext(ctx).Exec(
+			"ALTER TABLE audit_logs DELETE WHERE created_at < ? SETTINGS mutations_sync = 1",
+			targetTimestamp,
+		).Error; err != nil {
+			return 0, err
+		}
+		return total, nil
+	}
+
+	result := LOG_DB.WithContext(ctx).Where("created_at < ?", targetTimestamp).Limit(limit).Delete(&AuditLog{})
+	if nil != result.Error {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }
 
 func ValidAuditCategory(category string) bool {

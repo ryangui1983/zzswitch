@@ -356,7 +356,7 @@ func runLogCleanupTask(ctx context.Context, task *model.SystemTask, runnerID str
 	}
 
 	for {
-		remaining, err := model.CountOldLog(ctx, payload.TargetTimestamp)
+		remaining, err := countOldLogsForCleanup(ctx, payload.TargetTimestamp)
 		if err != nil {
 			failSystemTask(task, runnerID, err)
 			return
@@ -376,7 +376,7 @@ func runLogCleanupTask(ctx context.Context, task *model.SystemTask, runnerID str
 		// rows cannot be removed and we fail instead of busy-looping.
 		progressed := false
 		for state.Remaining > 0 {
-			rowsAffected, err := model.DeleteOldLogBatch(ctx, payload.TargetTimestamp, payload.BatchSize)
+			rowsAffected, err := deleteOldLogCleanupBatch(ctx, payload.TargetTimestamp, payload.BatchSize)
 			if err != nil {
 				failSystemTask(task, runnerID, err)
 				return
@@ -423,6 +423,26 @@ func runLogCleanupTask(ctx context.Context, task *model.SystemTask, runnerID str
 	if err := model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, result, ""); err != nil {
 		logSystemTaskLockError(ctx, task, err)
 	}
+}
+
+func countOldLogsForCleanup(ctx context.Context, targetTimestamp int64) (int64, error) {
+	usage, err := model.CountOldLog(ctx, targetTimestamp)
+	if err != nil {
+		return 0, err
+	}
+	audit, err := model.CountOldAuditLog(ctx, targetTimestamp)
+	if err != nil {
+		return 0, err
+	}
+	return usage + audit, nil
+}
+
+func deleteOldLogCleanupBatch(ctx context.Context, targetTimestamp int64, limit int) (int64, error) {
+	rows, err := model.DeleteOldLogBatch(ctx, targetTimestamp, limit)
+	if err != nil || rows > 0 {
+		return rows, err
+	}
+	return model.DeleteOldAuditLogBatch(ctx, targetTimestamp, limit)
 }
 
 func syncLogCleanupStateFromRemaining(state *LogCleanupState, remaining int64) {
