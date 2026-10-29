@@ -85,7 +85,7 @@ func (p *RetryParam) SelectRetryChannel(err *types.NewAPIError, channel *model.C
 	if p == nil || channel == nil {
 		return
 	}
-	if err != nil && operation_setting.IsAlwaysSkipRetryStatusCode(err.StatusCode) {
+	if types.IsSkipRetryError(err) || (err != nil && operation_setting.IsAlwaysSkipRetryStatusCode(err.StatusCode)) {
 		p.RetryChannel = nil
 		return
 	}
@@ -111,7 +111,7 @@ func shouldRetrySameChannel(err *types.NewAPIError, settings relayDto.ChannelSet
 	if err == nil || !settings.SchedulerPoolModeEnabled {
 		return false
 	}
-	if operation_setting.IsAlwaysSkipRetryStatusCode(err.StatusCode) {
+	if types.IsSkipRetryError(err) || operation_setting.IsAlwaysSkipRetryStatusCode(err.StatusCode) {
 		return false
 	}
 	if operation_setting.IsImageGenerationGroupPermissionError(err.StatusCode, err.Error()) {

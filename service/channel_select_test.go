@@ -2,18 +2,18 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
-	"fmt"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/relaykit/types"
-	"github.com/stretchr/testify/require"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRetryParamSelectRetryChannelPoolMode(t *testing.T) {
@@ -72,6 +72,19 @@ func TestRetryParamSelectRetryChannelSkipsCloudflare524(t *testing.T) {
 		Setting: common.GetPointer(`{"scheduler_pool_mode_enabled":true,"scheduler_pool_mode_retry_times":2,"scheduler_pool_mode_retry_status_codes":"500-599"}`),
 	}
 	upstreamErr := types.NewOpenAIError(errors.New("cloudflare timeout"), types.ErrorCodeBadResponseStatusCode, 524)
+
+	param.SelectRetryChannel(upstreamErr, channel)
+	require.Nil(t, param.RetryChannel)
+	require.Empty(t, param.ExhaustedChannelIds)
+}
+
+func TestRetryParamSelectRetryChannelSkipsSkipRetryError(t *testing.T) {
+	param := &RetryParam{}
+	channel := &model.Channel{
+		Id:      17,
+		Setting: common.GetPointer(`{"scheduler_pool_mode_enabled":true,"scheduler_pool_mode_retry_times":2,"scheduler_pool_mode_retry_status_codes":"500-599"}`),
+	}
+	upstreamErr := types.NewOpenAIError(errors.New("Our servers are currently overloaded. Please try again later."), types.ErrorCode("server_error"), http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 
 	param.SelectRetryChannel(upstreamErr, channel)
 	require.Nil(t, param.RetryChannel)

@@ -81,6 +81,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	defer service.CloseResponseBodyGracefully(resp)
 
 	accumulator := service.NewResponsesUsageAccumulator(info)
+	var streamFailure *types.OpenAIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -98,6 +99,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			logger.LogInfo(c, fmt.Sprintf("responses completed event, request_id=%s data=%s", info.RequestId, data))
 		}
 		accumulator.Observe(&streamResponse)
+		if eventErr := responsesStreamEventError(&streamResponse); eventErr != nil {
+			streamFailure = eventErr
+		}
 		if streamResponse.Response != nil && streamResponse.Response.Usage != nil {
 			tmp := &dto.Usage{}
 			service.ApplyResponsesUsage(tmp, streamResponse.Response.Usage)
@@ -112,7 +116,71 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		info.RequestId, info.StreamStatus.EndReason, info.ReceivedResponseCount))
 	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
 	info.StreamStatus.RequireTerminal()
-	return accumulator.Finish(), nil
+	usage := accumulator.Finish()
+	if info.StreamStatus != nil && info.StreamStatus.ResponseFailed() {
+		return usage, newResponsesStreamFailedError(streamFailure, info.StreamStatus)
+	}
+	return usage, nil
+}
+
+func responsesStreamEventError(event *dto.ResponsesStreamResponse) *types.OpenAIError {
+	if event == nil {
+		return nil
+	}
+	var oai *types.OpenAIError
+	if event.Response != nil {
+		if nested := event.Response.GetOpenAIError(); nested != nil {
+			copied := *nested
+			oai = &copied
+		}
+	}
+	failedType := event.Type == "error" || event.Type == "response.error" || event.Type == "response.failed"
+	if oai == nil && !failedType {
+		return nil
+	}
+	if oai == nil {
+		oai = &types.OpenAIError{}
+	}
+	if oai.Message == "" {
+		oai.Message = event.Message
+	}
+	if oai.Code == nil && event.Code != "" {
+		oai.Code = event.Code
+	}
+	if oai.Param == "" {
+		oai.Param = event.Param
+	}
+	if oai.Message == "" && oai.Code == nil && (oai.Type == "" || oai.Type == "error") {
+		return nil
+	}
+	return oai
+}
+
+func newResponsesStreamFailedError(eventErr *types.OpenAIError, status *relaycommon.StreamStatus) *types.NewAPIError {
+	oai := types.OpenAIError{}
+	if eventErr != nil {
+		oai = *eventErr
+	}
+	if status != nil {
+		snapshot := status.OutcomeSnapshot()
+		if oai.Code == nil && snapshot.ErrorCode != "" {
+			oai.Code = snapshot.ErrorCode
+		}
+		if oai.Type == "" {
+			oai.Type = snapshot.ErrorType
+		}
+	}
+	if oai.Type == "" || oai.Type == "error" || oai.Type == "response.failed" || oai.Type == "response.error" {
+		oai.Type = "upstream_error"
+	}
+	if oai.Message == "" {
+		if code, ok := oai.Code.(string); ok && code != "" {
+			oai.Message = "responses stream failed: " + code
+		} else {
+			oai.Message = "responses stream failed"
+		}
+	}
+	return types.WithOpenAIError(oai, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 }
 
 func rewriteSGLangResponsesCreatedAt(info *relaycommon.RelayInfo, payload []byte, path string, createdAt dto.IntValue) []byte {
