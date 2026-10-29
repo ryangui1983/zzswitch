@@ -14,9 +14,10 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-// InflateUpstreamUsage overwrites upstream usage: input tokens above 1000
-// and output tokens above 100 are increased by 10% (integer division).
-// Cache-write tokens are marked up 10% when input is marked up.
+// InflateUpstreamUsage overwrites upstream usage: input tokens above the
+// input threshold and output tokens above the output threshold are increased
+// by a per-usage random markup ratio (see tokenMarkupRatioForUsage).
+// Cache-write tokens are marked up by the same ratio when input is marked up.
 // If cache-read hit rate is below the target, a configured share of the
 // original charge may be spent to raise it by reallocating uncached input
 // into cache reads. Output is not scaled for the boost. Safe to call more than once.
@@ -38,7 +39,7 @@ func InflateUpstreamUsage(usage *dto.Usage) bool {
 
 	changed := false
 	newInput, newOutput := input, output
-	ratio := operation_setting.GetQuotaSetting().EffectiveTokenMarkupRatio()
+	ratio := tokenMarkupRatioForUsage(usage)
 	inThresh := operation_setting.GetQuotaSetting().TokenMarkupInputThreshold
 	outThresh := operation_setting.GetQuotaSetting().TokenMarkupOutputThreshold
 	if ratio > 0 {
@@ -62,7 +63,7 @@ func InflateUpstreamUsage(usage *dto.Usage) bool {
 		if inflateInputDetails(usage, ratio) {
 			changed = true
 		}
-		if inflateCacheWrite(usage) {
+		if inflateCacheWrite(usage, ratio) {
 			changed = true
 		}
 	}
@@ -141,8 +142,25 @@ func inflateByRatio(n int, ratio float64) int {
 	return n + int(float64(n)*ratio)
 }
 
-func inflateByTenPercent(n int) int {
-	return inflateByRatio(n, operation_setting.GetQuotaSetting().EffectiveTokenMarkupRatio())
+// tokenMarkupJitter is a var (not const) so tests can pin it to 0 for
+// deterministic fixed-ratio markup while production uses 0.5.
+var tokenMarkupJitter = 0.5
+
+// tokenMarkupRatioForUsage returns the per-usage markup ratio. The configured
+// TokenMarkupRatio is the upper bound; the applied ratio is a deterministic
+// pseudo-random value in [upper-0.5, upper]. When upper-0.5 < 0, no markup is
+// applied for this usage. Deterministic for the same usage numbers so a
+// client-side InflatedUsageCopy and later settlement agree.
+func tokenMarkupRatioForUsage(usage *dto.Usage) float64 {
+	upper := operation_setting.GetQuotaSetting().EffectiveTokenMarkupRatio()
+	if upper <= 0 {
+		return 0
+	}
+	lower := upper - tokenMarkupJitter
+	if lower < 0 {
+		return 0
+	}
+	return lower + usageHashUnit(usage, 8)*(upper-lower)
 }
 
 func inflatePositive(n int, ratio float64) int {
@@ -210,46 +228,46 @@ func inflateOutputTokenDetails(d *dto.OutputTokenDetails, total int, ratio float
 	return true
 }
 
-func inflateCacheWrite(usage *dto.Usage) bool {
+func inflateCacheWrite(usage *dto.Usage, ratio float64) bool {
 	changed := false
 	details := usage.PromptTokensDetails
 	if details.CachedTokens > 0 {
-		details.CachedTokens = inflateByTenPercent(details.CachedTokens)
+		details.CachedTokens = inflateByRatio(details.CachedTokens, ratio)
 		changed = true
 	}
 	if details.CacheWriteTokens > 0 {
-		details.CacheWriteTokens = inflateByTenPercent(details.CacheWriteTokens)
+		details.CacheWriteTokens = inflateByRatio(details.CacheWriteTokens, ratio)
 		changed = true
 	}
 	if details.CachedCreationTokens > 0 {
-		details.CachedCreationTokens = inflateByTenPercent(details.CachedCreationTokens)
+		details.CachedCreationTokens = inflateByRatio(details.CachedCreationTokens, ratio)
 		changed = true
 	}
 	usage.PromptTokensDetails = details
 	if usage.PromptCacheHitTokens > 0 {
-		usage.PromptCacheHitTokens = inflateByTenPercent(usage.PromptCacheHitTokens)
+		usage.PromptCacheHitTokens = inflateByRatio(usage.PromptCacheHitTokens, ratio)
 		changed = true
 	}
 	if usage.InputTokensDetails != nil {
 		if usage.InputTokensDetails.CachedTokens > 0 {
-			usage.InputTokensDetails.CachedTokens = inflateByTenPercent(usage.InputTokensDetails.CachedTokens)
+			usage.InputTokensDetails.CachedTokens = inflateByRatio(usage.InputTokensDetails.CachedTokens, ratio)
 			changed = true
 		}
 		if usage.InputTokensDetails.CacheWriteTokens > 0 {
-			usage.InputTokensDetails.CacheWriteTokens = inflateByTenPercent(usage.InputTokensDetails.CacheWriteTokens)
+			usage.InputTokensDetails.CacheWriteTokens = inflateByRatio(usage.InputTokensDetails.CacheWriteTokens, ratio)
 			changed = true
 		}
 		if usage.InputTokensDetails.CachedCreationTokens > 0 {
-			usage.InputTokensDetails.CachedCreationTokens = inflateByTenPercent(usage.InputTokensDetails.CachedCreationTokens)
+			usage.InputTokensDetails.CachedCreationTokens = inflateByRatio(usage.InputTokensDetails.CachedCreationTokens, ratio)
 			changed = true
 		}
 	}
 	if usage.ClaudeCacheCreation5mTokens > 0 {
-		usage.ClaudeCacheCreation5mTokens = inflateByTenPercent(usage.ClaudeCacheCreation5mTokens)
+		usage.ClaudeCacheCreation5mTokens = inflateByRatio(usage.ClaudeCacheCreation5mTokens, ratio)
 		changed = true
 	}
 	if usage.ClaudeCacheCreation1hTokens > 0 {
-		usage.ClaudeCacheCreation1hTokens = inflateByTenPercent(usage.ClaudeCacheCreation1hTokens)
+		usage.ClaudeCacheCreation1hTokens = inflateByRatio(usage.ClaudeCacheCreation1hTokens, ratio)
 		changed = true
 	}
 	return changed
@@ -496,9 +514,9 @@ func shouldBoostCacheHit(usage *dto.Usage, prob float64) bool {
 	return usageHashUnit(usage, 0) < prob
 }
 
-// InflatedUsageCopy returns a copy with 10% markup applied. The original is
-// left unchanged so stream accumulators can stay raw while the client frame
-// and later settlement both apply the same formula.
+// InflatedUsageCopy returns a copy with the configured random markup applied.
+// The original is left unchanged so stream accumulators can stay raw while the
+// client frame and later settlement both apply the same formula.
 func InflatedUsageCopy(usage *dto.Usage) *dto.Usage {
 	if usage == nil {
 		return nil
@@ -702,7 +720,7 @@ func ApplyInflatedCountsToClaudeUsage(dst *dto.ClaudeUsage, inflated *dto.Usage)
 	}
 }
 
-// InflateRealtimeUsage applies the same 10% markup to a realtime usage object.
+// InflateRealtimeUsage applies the same configured random markup to a realtime usage object.
 func InflateRealtimeUsage(usage *dto.RealtimeUsage) bool {
 	if usage == nil {
 		return false

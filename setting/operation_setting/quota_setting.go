@@ -13,7 +13,7 @@ type QuotaSetting struct {
 	EnableFreeModelPreConsume  bool    `json:"enable_free_model_pre_consume"`   // 是否对免费模型启用预消耗
 	TrustQuotaUSD              float64 `json:"trust_quota_usd"`                 // 钱包免预扣门槛，0 表示禁用
 	PreConsumeMultiplier       float64 `json:"pre_consume_multiplier"`          // 预计输入费用的预扣倍率，仅影响预留
-	TokenMarkupRatio           float64 `json:"token_markup_ratio"`              // 输入/输出/缓存写入加价比例，0.1 = 10%
+	TokenMarkupRatio           float64 `json:"token_markup_ratio"`              // 输入/输出/缓存写入加价比例上限，实际取值在 [上限-0.5, 上限] 间随机
 	TokenMarkupInputThreshold  int     `json:"token_markup_input_threshold"`    // 输入超过该值才加价
 	TokenMarkupOutputThreshold int     `json:"token_markup_output_threshold"`   // 输出超过该值才加价
 	CacheHitBoostProbability   float64 `json:"cache_hit_boost_probability"`     // 命中率低于目标时提升的概率，0-1

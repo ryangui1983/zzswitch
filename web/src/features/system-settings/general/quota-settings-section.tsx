@@ -71,7 +71,7 @@ const quotaSchema = z.object({
     pre_consume_multiplier: z.coerce
       .number({ error: () => i18next.t('Please enter a valid number') })
       .positive({ error: () => i18next.t('Must be greater than 0') }),
-    token_markup_ratio: z.coerce.number().min(0).max(1),
+    token_markup_ratio: z.coerce.number().min(0),
     token_markup_input_threshold: z.coerce.number().min(0),
     token_markup_output_threshold: z.coerce.number().min(0),
     cache_hit_boost_probability: z.coerce.number().min(0).max(1),
@@ -354,7 +354,6 @@ export function QuotaSettingsSection({
                       type='number'
                       step='0.01'
                       min='0'
-                      max='1'
                       value={field.value ?? ''}
                       onChange={handleNumberChange(field.onChange)}
                       name={field.name}
@@ -364,7 +363,7 @@ export function QuotaSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t(
-                      'Markup applied to input, output, and cache-write tokens when they exceed the thresholds (0.1 = 10%). 0 disables markup.'
+                      'Upper bound of the markup ratio applied to input, output, and cache-write tokens when they exceed the thresholds. Each usage picks a random ratio between value-0.5 and value; when value-0.5 is negative, that usage is not marked up. 0 disables markup.'
                     )}
                   </FormDescription>
                   <FormMessage />
@@ -513,174 +512,6 @@ export function QuotaSettingsSection({
                 </FormItem>
               )}
             />
-
-            <SettingsFormGridItem span='full'>
-              <FormField
-                control={form.control}
-                name='quota_setting.enable_free_model_pre_consume'
-                render={({ field }) => (
-                  <SettingsSwitchItem>
-                    <SettingsSwitchContent>
-                      <FormLabel>{t('Pre-Consume for Free Models')}</FormLabel>
-                      <FormDescription>
-                        {t(
-                          'When enabled, zero-cost models also pre-consume quota before final settlement.'
-                        )}
-                      </FormDescription>
-                    </SettingsSwitchContent>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={updateOption.isPending}
-                      />
-                    </FormControl>
-                  </SettingsSwitchItem>
-                )}
-              />
-            </SettingsFormGridItem>
-
-            <FormField
-              control={form.control}
-              name='quota_setting.token_markup_ratio'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Token Markup Ratio')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type='number'
-                      step='0.01'
-                      min='0'
-                      max='1'
-                      value={field.value ?? ''}
-                      onChange={handleNumberChange(field.onChange)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Markup applied to input, output, and cache-write tokens when they exceed the thresholds (0.1 = 10%). 0 disables markup.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='quota_setting.token_markup_input_threshold'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Token Markup Input Threshold')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type='number'
-                      min='0'
-                      value={field.value ?? ''}
-                      onChange={handleNumberChange(field.onChange)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Input tokens are marked up only when they exceed this value. Default 1000.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='quota_setting.token_markup_output_threshold'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Token Markup Output Threshold')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type='number'
-                      min='0'
-                      value={field.value ?? ''}
-                      onChange={handleNumberChange(field.onChange)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Output tokens are marked up only when they exceed this value. Default 100.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='quota_setting.cache_hit_boost_probability'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Cache Hit Boost Probability')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type='number'
-                      step='0.01'
-                      min='0'
-                      max='1'
-                      value={field.value ?? ''}
-                      onChange={handleNumberChange(field.onChange)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'After the 10% input markup, if cache hit rate is below the target, raise it to the target with this probability (0.9 = 90%). 0 disables it.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='quota_setting.cache_hit_boost_target'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Cache Hit Boost Target')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type='number'
-                      step='0.01'
-                      min='0'
-                      max='1'
-                      value={field.value ?? ''}
-                      onChange={handleNumberChange(field.onChange)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Target cache hit rate after markup (0.9 = 90%). Only applied to allowlisted OpenAI/xAI channels that already have cache reads.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
 
             <FormField
               control={form.control}

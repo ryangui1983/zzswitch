@@ -934,7 +934,7 @@
     "Token Markup Output Threshold": "输出 Token 加价阈值",
     "Input tokens are marked up only when they exceed this value. Default 1000.": "输入 token 超过该值才加价，默认 1000。",
     "Output tokens are marked up only when they exceed this value. Default 100.": "输出 token 超过该值才加价，默认 100。",
-    "Markup applied to input, output, and cache-write tokens when they exceed the thresholds (0.1 = 10%). 0 disables markup.": "输入、输出和缓存写入在超过阈值后的加价比例（0.1 = 10%）。填 0 关闭加价。",
+    "Upper bound of the markup ratio applied to input, output, and cache-write tokens when they exceed the thresholds. Each usage picks a random ratio between value-0.5 and value; when value-0.5 is negative, that usage is not marked up. 0 disables markup.": "输入、输出和缓存写入超过阈值后的加价比例上限。每次使用会在（该值-0.5）到该值之间随机取值；当该值-0.5 小于 0 时，该次不加价。填 0 关闭加价。",
     "Cache Hit Boost Probability": "缓存命中率提升概率",
     "Cache Hit Boost Target": "缓存命中率提升目标",
     "After the 10% input markup, if cache hit rate is below the target, raise it to the target with this probability (0.9 = 90%). 0 disables it.": "输入 token 加价 10% 后，若缓存命中率低于目标值，按此概率提升到目标（0.9 = 90%）。填 0 关闭。",

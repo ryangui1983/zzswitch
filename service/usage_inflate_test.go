@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Pin the jitter to 0 so the existing tests exercise deterministic fixed-ratio
+// markup (default 0.1 = 10%). Tests for the randomized range set it back to 0.5.
+func init() {
+	tokenMarkupJitter = 0
+}
+
 func TestInflateUpstreamUsage(t *testing.T) {
 	t.Run("nil is a no-op", func(t *testing.T) {
 		require.False(t, InflateUpstreamUsage(nil))
@@ -515,5 +521,50 @@ func TestCacheHitBoostSpendsOriginalBudget(t *testing.T) {
 		require.True(t, InflateUpstreamUsageForChannel(usage, 1))
 		require.Equal(t, 11000, usage.PromptTokens)
 		require.Equal(t, 5500, usage.PromptTokensDetails.CachedTokens)
+	})
+}
+
+func TestTokenMarkupRatioForUsage(t *testing.T) {
+	setting := operation_setting.GetQuotaSetting()
+	origRatio := setting.TokenMarkupRatio
+	origJitter := tokenMarkupJitter
+	t.Cleanup(func() {
+		setting.TokenMarkupRatio = origRatio
+		tokenMarkupJitter = origJitter
+	})
+
+	t.Run("ratio stays within [upper-0.5, upper]", func(t *testing.T) {
+		setting.TokenMarkupRatio = 1.0
+		tokenMarkupJitter = 0.5
+		usage := &dto.Usage{PromptTokens: 2000, CompletionTokens: 50}
+		ratio := tokenMarkupRatioForUsage(usage)
+		require.GreaterOrEqual(t, ratio, 0.5)
+		require.LessOrEqual(t, ratio, 1.0)
+		// deterministic for the same usage numbers
+		require.Equal(t, ratio, tokenMarkupRatioForUsage(usage))
+	})
+
+	t.Run("no markup when upper-0.5 is negative", func(t *testing.T) {
+		setting.TokenMarkupRatio = 0.4
+		tokenMarkupJitter = 0.5
+		require.Equal(t, 0.0, tokenMarkupRatioForUsage(&dto.Usage{PromptTokens: 2000}))
+	})
+
+	t.Run("no markup when upper is zero", func(t *testing.T) {
+		setting.TokenMarkupRatio = 0
+		tokenMarkupJitter = 0.5
+		require.Equal(t, 0.0, tokenMarkupRatioForUsage(&dto.Usage{PromptTokens: 2000}))
+	})
+
+	t.Run("applies jittered markup through InflateUpstreamUsage", func(t *testing.T) {
+		setting.TokenMarkupRatio = 1.0
+		tokenMarkupJitter = 0.5
+		usage := &dto.Usage{PromptTokens: 2000, CompletionTokens: 50}
+		require.True(t, InflateUpstreamUsage(usage))
+		ratio := float64(usage.PromptTokens-2000) / 2000.0
+		require.GreaterOrEqual(t, ratio, 0.5)
+		require.LessOrEqual(t, ratio, 1.0)
+		// completion is below the output threshold, so it is not marked up
+		require.Equal(t, 50, usage.CompletionTokens)
 	})
 }

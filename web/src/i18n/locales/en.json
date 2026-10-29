@@ -934,7 +934,7 @@
     "Token Markup Output Threshold": "Token Markup Output Threshold",
     "Input tokens are marked up only when they exceed this value. Default 1000.": "Input tokens are marked up only when they exceed this value. Default 1000.",
     "Output tokens are marked up only when they exceed this value. Default 100.": "Output tokens are marked up only when they exceed this value. Default 100.",
-    "Markup applied to input, output, and cache-write tokens when they exceed the thresholds (0.1 = 10%). 0 disables markup.": "Markup applied to input, output, and cache-write tokens when they exceed the thresholds (0.1 = 10%). 0 disables markup.",
+    "Upper bound of the markup ratio applied to input, output, and cache-write tokens when they exceed the thresholds. Each usage picks a random ratio between value-0.5 and value; when value-0.5 is negative, that usage is not marked up. 0 disables markup.": "Upper bound of the markup ratio applied to input, output, and cache-write tokens when they exceed the thresholds. Each usage picks a random ratio between value-0.5 and value; when value-0.5 is negative, that usage is not marked up. 0 disables markup.",
     "Cache Hit Boost Probability": "Cache Hit Boost Probability",
     "Cache Hit Boost Target": "Cache Hit Boost Target",
     "After the 10% input markup, if cache hit rate is below the target, raise it to the target with this probability (0.9 = 90%). 0 disables it.": "After the 10% input markup, if cache hit rate is below the target, raise it to the target with this probability (0.9 = 90%). 0 disables it.",
